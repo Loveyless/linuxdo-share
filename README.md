@@ -1,15 +1,19 @@
 # 快速分享 Linux do 文章
+
 <img width="550" height="300" alt="image" src="https://github.com/user-attachments/assets/b91e3626-9377-4624-b149-28efd5e8ed1b" />
 
-点击可获得↓
---------------------------------------------
+## 点击可获得 ↓
+
 -请不要把互联网上的戾气带来这里！
 @Neo(运营反馈)
 
-L站打击傲慢、阴阳怪气、攻击谩骂，旨在打造和谐社区。请友善交流，遵守规则，违者严惩。
+L 站打击傲慢、阴阳怪气、攻击谩骂，旨在打造和谐社区。请友善交流，遵守规则，违者严惩。
 
-https://linux.do/t/topic/482293
---------------------------------------------
+## https://linux.do/t/topic/482293
+
+## greasyfork
+
+https://greasyfork.org/zh-CN/scripts/543581
 
 ### SFC 应用中遇到的问题分析
 
