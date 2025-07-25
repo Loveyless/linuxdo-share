@@ -2,14 +2,16 @@
 
 <img width="550" height="300" alt="image" src="https://github.com/user-attachments/assets/b91e3626-9377-4624-b149-28efd5e8ed1b" />
 
-## 点击可获得 ↓
-
+## 点击后剪切板可获得如下内容 ↓
+```
 -请不要把互联网上的戾气带来这里！
 @Neo(运营反馈)
 
 L 站打击傲慢、阴阳怪气、攻击谩骂，旨在打造和谐社区。请友善交流，遵守规则，违者严惩。
 
 https://linux.do/t/topic/482293
+```
+<img width="369" height="236" alt="image" src="https://github.com/user-attachments/assets/a73351d5-86a8-4db1-9580-2bc0b4c11bb6" />
 
 ## 可以接入Gemini来总结正文内容
 <img width="911" height="398" alt="image" src="https://github.com/user-attachments/assets/7deb9373-b5d0-4596-bff8-9cc5400c9e4b" />
@@ -17,6 +19,7 @@ https://linux.do/t/topic/482293
 ## greasyfork
 
 https://greasyfork.org/zh-CN/scripts/543581
+
 
 ### SFC 应用中遇到的问题分析
 
