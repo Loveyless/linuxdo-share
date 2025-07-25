@@ -3,7 +3,7 @@
 // @namespace     http://tampermonkey.net/
 // @version       0.2
 // @description   从论坛页面获取文章的板块、标题、链接、标签和内容总结，并在标题旁添加复制按钮。
-// @author        Loveyless
+// @author        @Loveyless https://github.com/Loveyless/linuxdo-share
 // @match         *://*.linux.do/*
 // @grant         GM_getValue
 // @grant         GM_setValue
