@@ -2,7 +2,7 @@
 // @name          获取论坛文章数据与复制
 // @namespace     http://tampermonkey.net/
 // @version       0.2
-// @description   从论坛页面获取文章的板块、标题、链接、标签和内容总结，并在标题旁添加复制按钮。
+// @description   从linux do论坛页面获取文章的板块、标题、链接、标签和内容总结，并在标题旁添加复制按钮。
 // @author        @Loveyless https://github.com/Loveyless/linuxdo-share
 // @match         *://*.linux.do/*
 // @grant         GM_getValue
@@ -90,7 +90,7 @@
             flex-shrink: 0;
             margin-left: 8px;
         }
-        
+
         /* 调整标题的父元素 (h1[data-topic-id]) 为 flex 布局，确保按钮能紧随标题且对齐 */
         h1[data-topic-id] {
             display: flex !important; /* 强制 flexbox */
@@ -188,6 +188,25 @@
 
         .copy-button:hover svg {
             color: var(--button-hover-text-color);
+        }
+
+        @keyframes pulse {
+          0%, 100% {
+            opacity: 1;
+          }
+          50% {
+            opacity: 0.6;
+          }
+        }
+
+        /* 当按钮处于 loading 状态时，应用脉冲动画 */
+        .copy-button.loading {
+          animation: pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+
+        .copy-button.loading .checkmark,
+        .copy-button.loading .failedmark {
+            display: none; /* Loading 时隐藏对勾和叉号 */
         }
     `;
 
@@ -445,8 +464,17 @@
     copyButton.addEventListener('click', async (e) => {
       e.stopPropagation(); // 阻止点击按钮时跳转到文章链接
 
+      // 避免在处理期间重复点击
+      if (copyButton.classList.contains('loading')) {
+        return;
+      }
+
+      // 1. 立即进入 Loading 状态
+      copyButton.classList.add('loading');
+      copyButton.disabled = true; // 禁用按钮，防止重复点击
+
       try {
-        // 获取文章数据
+        // 获取文章数据（这一步可能会因为API调用而耗时）
         const articleData = await getArticleData(titleElement, articleRootElement);
         console.log('获取到的文章数据:', articleData);
 
@@ -460,6 +488,10 @@
         copyTextToClipboard({ element: copyButton, text: formattedText });
       } catch (error) {
         handleCopyError({ element: copyButton, error });
+      } finally {
+        // 3. 无论成功或失败，最后都移除 Loading 状态
+        copyButton.classList.remove('loading');
+        copyButton.disabled = false; // 重新启用按钮
       }
     });
   }
