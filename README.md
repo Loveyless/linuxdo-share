@@ -1,7 +1,5 @@
----
-
 # 快速分享 Linux do 文章
-<img width="1028" height="595" alt="image" src="https://github.com/user-attachments/assets/b91e3626-9377-4624-b149-28efd5e8ed1b" />
+<img width="600" height="300" alt="image" src="https://github.com/user-attachments/assets/b91e3626-9377-4624-b149-28efd5e8ed1b" />
 
 点击可获得↓
 --------------------------------------------
