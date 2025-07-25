@@ -9,7 +9,10 @@
 
 L 站打击傲慢、阴阳怪气、攻击谩骂，旨在打造和谐社区。请友善交流，遵守规则，违者严惩。
 
-## https://linux.do/t/topic/482293
+https://linux.do/t/topic/482293
+
+## 可以接入Gemini来总结正文内容
+<img width="911" height="398" alt="image" src="https://github.com/user-attachments/assets/7deb9373-b5d0-4596-bff8-9cc5400c9e4b" />
 
 ## greasyfork
 
