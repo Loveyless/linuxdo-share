@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name          从linux do获取论坛文章数据与复制
 // @namespace     http://tampermonkey.net/
-// @version       0.4
+// @version       0.5
 // @description   从linux do论坛页面获取文章的板块、标题、链接、标签和内容总结，并在标题旁添加复制按钮。支持设置界面配置。
 // @author        @Loveyless https://github.com/Loveyless/linuxdo-share
 // @match         *://*.linux.do/*
@@ -27,9 +27,9 @@
     // Gemini 模型名称
     GEMINI_MODEL: 'gemini-2.5-flash-lite',
     // 本地内容总结的最大字符数
-    LOCAL_SUMMARY_MAX_CHARS: 80,
+    LOCAL_SUMMARY_MAX_CHARS: 140,
     // 自定义总结 Prompt
-    CUSTOM_SUMMARY_PROMPT: '你是一个信息获取专家，可以精准的总结文章的精华内容和重点，请对以下文章内容进行归纳总结，回复不要有对我的问候语，或者《你好这是我的总结》等类似废话，直接返回你的总结，长度不超过{maxChars}个字符（或尽可能短，保持中文语义完整）：\n\n{content}',
+    CUSTOM_SUMMARY_PROMPT: '你是一个信息获取专家，可以精准的总结文章的精华内容和重点，请对以下文章内容进行归纳总结，你应该以“作者在帖子中表达了”、“作者在帖子中表示”、“作者在该帖子中认为”等类似的文字作为总结的开头。\n\n {content}',
     // 文章复制模板
     ARTICLE_COPY_TEMPLATE: [
       `-{{title}}`,
@@ -725,9 +725,15 @@
           </div>
 
           <div class="linuxdo-settings-field">
+            <label for="localSummaryMaxChars" class="linuxdo-settings-label">本地总结最大字符数</label>
+            <input type="number" id="localSummaryMaxChars" class="linuxdo-settings-input" value="${getConfig('LOCAL_SUMMARY_MAX_CHARS')}" placeholder="140" min="1" max="10000">
+            <div class="linuxdo-settings-description">设置本地内容总结的最大字符数，范围：1-10000</div>
+          </div>
+
+          <div class="linuxdo-settings-field">
             <label for="customPrompt" class="linuxdo-settings-label">自定义总结 Prompt</label>
             <textarea id="customPrompt" class="linuxdo-settings-textarea" placeholder="输入自定义的总结提示词">${getConfig('CUSTOM_SUMMARY_PROMPT')}</textarea>
-            <div class="linuxdo-settings-description">可以使用 {maxChars} 和 {content} 作为占位符</div>
+            <div class="linuxdo-settings-description">可以使用 {content} 作为占位符，代表帖子正文内容</div>
           </div>
 
           <div class="linuxdo-settings-buttons">
@@ -855,6 +861,7 @@
       
       const useGeminiApi = dialog.querySelector('#useGeminiApi').checked;
       const apiKey = dialog.querySelector('#geminiApiKey').value.trim();
+      const localSummaryMaxChars = parseInt(dialog.querySelector('#localSummaryMaxChars').value.trim()) || DEFAULT_CONFIG.LOCAL_SUMMARY_MAX_CHARS;
       const customPrompt = dialog.querySelector('#customPrompt').value.trim();
 
       // 获取模型值
@@ -869,6 +876,7 @@
       setConfig('USE_GEMINI_API_FOR_SUMMARY', useGeminiApi);
       setConfig('GEMINI_API_KEY', apiKey);
       setConfig('GEMINI_MODEL', modelValue || DEFAULT_CONFIG.GEMINI_MODEL);
+      setConfig('LOCAL_SUMMARY_MAX_CHARS', localSummaryMaxChars);
       setConfig('CUSTOM_SUMMARY_PROMPT', customPrompt || DEFAULT_CONFIG.CUSTOM_SUMMARY_PROMPT);
 
       // 显示保存成功提示
