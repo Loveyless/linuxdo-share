@@ -5,6 +5,8 @@
 // @description   从linux do论坛页面获取文章的板块、标题、链接、标签和内容总结，并在标题旁添加复制按钮。支持设置界面配置。
 // @author        @Loveyless https://github.com/Loveyless/linuxdo-share
 // @match         *://*.linux.do/*
+// @updateURL     https://raw.githubusercontent.com/Loveyless/linuxdo-share/main/script.user.js
+// @downloadURL   https://raw.githubusercontent.com/Loveyless/linuxdo-share/main/script.user.js
 // @grant         GM_getValue
 // @grant         GM_setValue
 // @grant         GM_xmlhttpRequest
@@ -707,7 +709,6 @@
           <div class="linuxdo-settings-field">
             <label for="geminiApiKey" class="linuxdo-settings-label">Gemini API Key</label>
             <input type="password" id="geminiApiKey" class="linuxdo-settings-input" value="${getConfig('GEMINI_API_KEY')}" placeholder="请输入您的 Gemini API Key">
-            <div class="linuxdo-settings-description">获取地址：<a href="https://aistudio.google.com/apikey" target="_blank">https://aistudio.google.com/apikey</a></div>
           </div>
 
           <div class="linuxdo-settings-field">
