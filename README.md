@@ -1,3 +1,6 @@
+## greasyfork
+https://greasyfork.org/zh-CN/scripts/543581
+
 # 快速分享 Linux do 文章
 
 <img width="550" height="300" alt="image" src="https://github.com/user-attachments/assets/b91e3626-9377-4624-b149-28efd5e8ed1b" />
@@ -14,11 +17,7 @@ https://linux.do/t/topic/482293
 <img width="369" height="236" alt="image" src="https://github.com/user-attachments/assets/a73351d5-86a8-4db1-9580-2bc0b4c11bb6" />
 
 ## 可以接入Gemini来总结正文内容
-<img width="911" height="398" alt="image" src="https://github.com/user-attachments/assets/7deb9373-b5d0-4596-bff8-9cc5400c9e4b" />
-
-## greasyfork
-
-https://greasyfork.org/zh-CN/scripts/543581
+<img width="1085" height="907" alt="image" src="https://github.com/user-attachments/assets/6baf738c-3a14-405d-81a4-04aa2c882fb8" />
 
 
 ### SFC 应用中遇到的问题分析
