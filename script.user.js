@@ -1,14 +1,15 @@
 // ==UserScript==
 // @name          从linux do获取论坛文章数据与复制
 // @namespace     http://tampermonkey.net/
-// @version       0.3
-// @description   从linux do论坛页面获取文章的板块、标题、链接、标签和内容总结，并在标题旁添加复制按钮。
+// @version       0.4
+// @description   从linux do论坛页面获取文章的板块、标题、链接、标签和内容总结，并在标题旁添加复制按钮。支持设置界面配置。
 // @author        @Loveyless https://github.com/Loveyless/linuxdo-share
 // @match         *://*.linux.do/*
 // @grant         GM_getValue
 // @grant         GM_setValue
 // @grant         GM_xmlhttpRequest
 // @grant         GM_addStyle
+// @grant         GM_registerMenuCommand
 // @run-at        document-idle // 更可靠的运行时间，等待DOM和资源加载完成且浏览器空闲
 // ==/UserScript==
 
@@ -16,28 +17,50 @@
   'use strict';
 
   // ==========================================================
-  // 配置项
+  // 配置项和默认值
   // ==========================================================
-  const CONFIG = {
+  const DEFAULT_CONFIG = {
     // 是否启用 Gemini API 进行内容总结
-    USE_GEMINI_API_FOR_SUMMARY: GM_getValue('USE_GEMINI_API_FOR_SUMMARY', false),
+    USE_GEMINI_API_FOR_SUMMARY: false,
     // Gemini API Key，如果 USE_GEMINI_API_FOR_SUMMARY 为 true，则需要填写此项 获取:https://aistudio.google.com/apikey
-    GEMINI_API_KEY: GM_getValue('GEMINI_API_KEY', ''),
-    // Gemini 模型名称，例如 'gemini-pro' 或 'gemini-1.5-flash' 参见:https://ai.google.dev/gemini-api/docs/models?hl=zh-cn
-    GEMINI_MODEL: GM_getValue('GEMINI_MODEL', 'gemini-1.5-flash'),
+    GEMINI_API_KEY: '',
+    // Gemini 模型名称
+    GEMINI_MODEL: 'gemini-2.5-flash-lite',
     // 本地内容总结的最大字符数
-    LOCAL_SUMMARY_MAX_CHARS: GM_getValue('LOCAL_SUMMARY_MAX_CHARS', 80), // 调整为更合理的字符数，并允许用户配置
-
+    LOCAL_SUMMARY_MAX_CHARS: 80,
+    // 自定义总结 Prompt
+    CUSTOM_SUMMARY_PROMPT: '你是一个信息获取专家，可以精准的总结文章的精华内容和重点，请对以下文章内容进行归纳总结，回复不要有对我的问候语，或者《你好这是我的总结》等类似废话，直接返回你的总结，长度不超过{maxChars}个字符（或尽可能短，保持中文语义完整）：\n\n{content}',
     // 文章复制模板
-    ARTICLE_COPY_TEMPLATE: GM_getValue('ARTICLE_COPY_TEMPLATE', [
+    ARTICLE_COPY_TEMPLATE: [
       `-{{title}}`,
       `@{{username}}({{category}})`, // 增加作者信息
       ``,
       `{{summary}}`,
       ``,
       `{{link}}`,
-    ].join('\n'))
+    ].join('\n')
   };
+
+  // 获取配置值的函数
+  function getConfig(key) {
+    return GM_getValue(key, DEFAULT_CONFIG[key]);
+  }
+
+  // 设置配置值的函数
+  function setConfig(key, value) {
+    GM_setValue(key, value);
+  }
+
+  // 动态配置对象
+  const CONFIG = new Proxy({}, {
+    get(target, prop) {
+      return getConfig(prop);
+    },
+    set(target, prop, value) {
+      setConfig(prop, value);
+      return true;
+    }
+  });
 
   // ==========================================================
   // CSS 样式定义
@@ -208,6 +231,424 @@
         .copy-button.loading .failedmark {
             display: none; /* Loading 时隐藏对勾和叉号 */
         }
+
+        /* 设置界面样式 - 使用 dialog 标签 */
+        .linuxdo-settings-dialog {
+            border: none;
+            border-radius: 12px;
+            padding: 0;
+            width: 90%;
+            max-width: 520px;
+            max-height: 85vh;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: transparent;
+            overflow: visible;
+        }
+
+        .linuxdo-settings-dialog::backdrop {
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(4px);
+            animation: fadeIn 0.2s ease-out;
+        }
+
+        .linuxdo-settings-content {
+            background: white;
+            border-radius: 12px;
+            padding: 28px;
+            overflow-y: auto;
+            max-height: 85vh;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+            position: relative;
+            animation: slideIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        html[style*="color-scheme: dark"] .linuxdo-settings-content {
+            background: #2d2d2d;
+            color: #fff;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: scale(0.9) translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1) translateY(0);
+            }
+        }
+
+        .linuxdo-settings-dialog[closing] {
+            animation: slideOut 0.2s ease-in forwards;
+        }
+
+        .linuxdo-settings-dialog[closing]::backdrop {
+            animation: fadeOut 0.2s ease-in forwards;
+        }
+
+        @keyframes slideOut {
+            from {
+                opacity: 1;
+                transform: scale(1) translateY(0);
+            }
+            to {
+                opacity: 0;
+                transform: scale(0.95) translateY(-10px);
+            }
+        }
+
+        @keyframes fadeOut {
+            from { opacity: 1; }
+            to { opacity: 0; }
+        }
+
+        .linuxdo-settings-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 2px solid #f0f0f0;
+            position: relative;
+        }
+
+        html[style*="color-scheme: dark"] .linuxdo-settings-header {
+            border-bottom-color: #404040;
+        }
+
+        .linuxdo-settings-title {
+            font-size: 20px;
+            font-weight: 700;
+            margin: 0;
+            color: #1a1a1a;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        html[style*="color-scheme: dark"] .linuxdo-settings-title {
+            background: linear-gradient(135deg, #8bb9fe 0%, #a8c8ff 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .linuxdo-settings-close {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            font-size: 18px;
+            cursor: pointer;
+            color: #6c757d;
+            padding: 0;
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            transition: all 0.2s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .linuxdo-settings-close::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+            transition: left 0.5s;
+        }
+
+        .linuxdo-settings-close:hover {
+            background: #e9ecef;
+            color: #495057;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        .linuxdo-settings-close:hover::before {
+            left: 100%;
+        }
+
+        .linuxdo-settings-close:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+        }
+
+        html[style*="color-scheme: dark"] .linuxdo-settings-close {
+            background: #404040;
+            border-color: #555;
+            color: #ccc;
+        }
+
+        html[style*="color-scheme: dark"] .linuxdo-settings-close:hover {
+            background: #4a4a4a;
+            color: #fff;
+        }
+
+        .linuxdo-settings-form {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .linuxdo-settings-field {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            position: relative;
+        }
+
+        .linuxdo-settings-label {
+            font-weight: 600;
+            font-size: 14px;
+            color: #374151;
+            margin-bottom: 4px;
+        }
+
+        html[style*="color-scheme: dark"] .linuxdo-settings-label {
+            color: #d1d5db;
+        }
+        
+        .linuxdo-settings-input,
+        .linuxdo-settings-textarea {
+            width: 100%;
+        }
+        .linuxdo-settings-input,
+        .linuxdo-settings-select,
+        .linuxdo-settings-textarea {
+            padding: 12px 16px;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: inherit;
+            transition: all 0.2s ease;
+            background: #ffffff;
+            color: #374151;
+            margin-bottom: 0px !important;
+            height: 48px;
+        }
+
+        .linuxdo-settings-input:focus,
+        .linuxdo-settings-select:focus,
+        .linuxdo-settings-textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            transform: translateY(-1px);
+        }
+
+        html[style*="color-scheme: dark"] .linuxdo-settings-input,
+        html[style*="color-scheme: dark"] .linuxdo-settings-select,
+        html[style*="color-scheme: dark"] .linuxdo-settings-textarea {
+            background: #374151;
+            border-color: #4b5563;
+            color: #f9fafb;
+        }
+
+        html[style*="color-scheme: dark"] .linuxdo-settings-input:focus,
+        html[style*="color-scheme: dark"] .linuxdo-settings-select:focus,
+        html[style*="color-scheme: dark"] .linuxdo-settings-textarea:focus {
+            border-color: #8bb9fe;
+            box-shadow: 0 0 0 3px rgba(139, 185, 254, 0.1);
+        }
+
+        .linuxdo-settings-textarea {
+            resize: vertical;
+            min-height: 100px;
+            line-height: 1.5;
+        }
+
+        .linuxdo-settings-checkbox,
+        .linuxdo-settings-label {
+            margin: 0px !important;
+        }
+
+        .linuxdo-settings-checkbox-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 0;
+            cursor: pointer;
+            border-radius: 8px;
+            transition: background-color 0.2s ease;
+        }
+
+        .linuxdo-settings-checkbox-wrapper:hover {
+            background-color: rgba(102, 126, 234, 0.05);
+        }
+
+        html[style*="color-scheme: dark"] .linuxdo-settings-checkbox-wrapper:hover {
+            background-color: rgba(139, 185, 254, 0.05);
+        }
+
+        .linuxdo-settings-checkbox {
+            width: 20px;
+            height: 20px;
+            border: 2px solid #d1d5db;
+            border-radius: 4px;
+            background: white;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            position: relative;
+        }
+
+        .linuxdo-settings-checkbox:checked {
+            background: #667eea;
+            border-color: #667eea;
+        }
+
+        .linuxdo-settings-checkbox:checked::after {
+            content: '✓';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        html[style*="color-scheme: dark"] .linuxdo-settings-checkbox {
+            border-color: #6b7280;
+            background: #374151;
+        }
+
+        html[style*="color-scheme: dark"] .linuxdo-settings-checkbox:checked {
+            background: #8bb9fe;
+            border-color: #8bb9fe;
+        }
+
+        .linuxdo-settings-buttons {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+            margin-top: 20px;
+            padding-top: 16px;
+            border-top: 1px solid #e5e5e5;
+        }
+
+        html[style*="color-scheme: dark"] .linuxdo-settings-buttons {
+            border-top-color: #444;
+        }
+
+        .linuxdo-settings-button {
+            padding: 8px 16px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background: white;
+            color: #333;
+            cursor: pointer;
+            font-size: 14px;
+            font-family: inherit;
+        }
+
+        .linuxdo-settings-button:hover {
+            background: #f5f5f5;
+        }
+
+        .linuxdo-settings-button.primary {
+            background: #007bff;
+            color: white;
+            border-color: #007bff;
+        }
+
+        .linuxdo-settings-button.primary:hover {
+            background: #0056b3;
+            border-color: #0056b3;
+        }
+
+        html[style*="color-scheme: dark"] .linuxdo-settings-button {
+            background: #3a3a3a;
+            border-color: #555;
+            color: #fff;
+        }
+
+        html[style*="color-scheme: dark"] .linuxdo-settings-button:hover {
+            background: #444;
+        }
+
+        .linuxdo-settings-description {
+            font-size: 12px;
+            color: #666;
+            margin-top: 4px;
+        }
+
+        html[style*="color-scheme: dark"] .linuxdo-settings-description {
+            color: #999;
+        }
+
+        .linuxdo-model-input-wrapper {
+            display: flex;
+            gap: 12px;
+            align-items: stretch;
+        }
+
+        .linuxdo-model-input-wrapper .linuxdo-settings-select {
+            flex: 1;
+        }
+
+        .linuxdo-model-input-wrapper .linuxdo-settings-input {
+            flex: 1;
+            display: none;
+        }
+
+        .linuxdo-model-input-wrapper.custom-input .linuxdo-settings-select {
+            display: none;
+        }
+
+        .linuxdo-model-input-wrapper.custom-input .linuxdo-settings-input {
+            display: block;
+        }
+
+        .linuxdo-model-toggle {
+            padding: 8px 16px;
+            font-size: 13px;
+            font-weight: 600;
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            border: 2px solid #dee2e6;
+            border-radius: 8px;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: all 0.2s ease;
+            color: #495057;
+            min-width: 80px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .linuxdo-model-toggle:hover {
+            background: linear-gradient(135deg, #e9ecef 0%, #dee2e6 100%);
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .linuxdo-model-toggle:active {
+            transform: translateY(0);
+            box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+        }
+
+        html[style*="color-scheme: dark"] .linuxdo-model-toggle {
+            background: linear-gradient(135deg, #4b5563 0%, #374151 100%);
+            border-color: #6b7280;
+            color: #f9fafb;
+        }
+
+        html[style*="color-scheme: dark"] .linuxdo-model-toggle:hover {
+            background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
+        }
     `;
 
   /**
@@ -228,9 +669,236 @@
   addStyle(copyBtnStyle);
 
   // ==========================================================
+  // 设置界面相关函数
+  // ==========================================================
+
+  // 预定义的模型选项
+  const PREDEFINED_MODELS = [
+    'gemini-2.0-flash-lite',
+    'gemini-2.5-pro',
+    'gemini-2.5-flash'
+  ];
+
+  /**
+   * 创建设置界面 - 使用 dialog 标签
+   */
+  function createSettingsModal() {
+    const dialog = document.createElement('dialog');
+    dialog.className = 'linuxdo-settings-dialog';
+
+    const currentModel = getConfig('GEMINI_MODEL');
+    const isCustomModel = !PREDEFINED_MODELS.includes(currentModel);
+
+    dialog.innerHTML = `
+      <div class="linuxdo-settings-content">
+        <div class="linuxdo-settings-header">
+          <h2 class="linuxdo-settings-title">LinuxDo 分享助手设置</h2>
+          <button class="linuxdo-settings-close" type="button">&times;</button>
+        </div>
+        <form class="linuxdo-settings-form" method="dialog">
+          <div class="linuxdo-settings-field">
+            <div class="linuxdo-settings-checkbox-wrapper">
+              <input type="checkbox" id="useGeminiApi" class="linuxdo-settings-checkbox" ${getConfig('USE_GEMINI_API_FOR_SUMMARY') ? 'checked' : ''}>
+              <label for="useGeminiApi" class="linuxdo-settings-label">启用 AI 自动总结</label>
+            </div>
+            <div class="linuxdo-settings-description">开启后将使用 Gemini API 对文章内容进行智能总结</div>
+          </div>
+
+          <div class="linuxdo-settings-field">
+            <label for="geminiApiKey" class="linuxdo-settings-label">Gemini API Key</label>
+            <input type="password" id="geminiApiKey" class="linuxdo-settings-input" value="${getConfig('GEMINI_API_KEY')}" placeholder="请输入您的 Gemini API Key">
+            <div class="linuxdo-settings-description">获取地址：<a href="https://aistudio.google.com/apikey" target="_blank">https://aistudio.google.com/apikey</a></div>
+          </div>
+
+          <div class="linuxdo-settings-field">
+            <label for="geminiModel" class="linuxdo-settings-label">AI 模型</label>
+            <div class="linuxdo-model-input-wrapper ${isCustomModel ? 'custom-input' : ''}">
+              <select id="geminiModelSelect" class="linuxdo-settings-select">
+                ${PREDEFINED_MODELS.map(model =>
+                  `<option value="${model}" ${model === currentModel ? 'selected' : ''}>${model}</option>`
+                ).join('')}
+              </select>
+              <input type="text" id="geminiModelInput" class="linuxdo-settings-input" value="${isCustomModel ? currentModel : ''}" placeholder="输入自定义模型名称">
+              <button type="button" class="linuxdo-model-toggle">${isCustomModel ? '预设' : '自定义'}</button>
+            </div>
+            <div class="linuxdo-settings-description">选择要使用的 Gemini 模型，或输入自定义模型名称</div>
+          </div>
+
+          <div class="linuxdo-settings-field">
+            <label for="customPrompt" class="linuxdo-settings-label">自定义总结 Prompt</label>
+            <textarea id="customPrompt" class="linuxdo-settings-textarea" placeholder="输入自定义的总结提示词">${getConfig('CUSTOM_SUMMARY_PROMPT')}</textarea>
+            <div class="linuxdo-settings-description">可以使用 {maxChars} 和 {content} 作为占位符</div>
+          </div>
+
+          <div class="linuxdo-settings-buttons">
+            <button type="button" class="linuxdo-settings-button" id="cancelSettings">取消</button>
+            <button type="button" class="linuxdo-settings-button primary" id="saveSettings">保存</button>
+          </div>
+        </form>
+      </div>
+    `;
+
+    return dialog;
+  }
+
+  /**
+   * 显示设置界面 - 使用 dialog API
+   */
+  function showSettingsModal() {
+    // 确保只在主窗口中显示设置界面，避免在 iframe 中显示
+    if (window !== window.top) {
+      console.log('在 iframe 中，跳过显示设置界面');
+      return;
+    }
+
+    // 移除已存在的对话框
+    const existingDialog = document.querySelector('.linuxdo-settings-dialog');
+    if (existingDialog) {
+      existingDialog.remove();
+    }
+
+    const dialog = createSettingsModal();
+    document.body.appendChild(dialog);
+
+    // 绑定事件
+    bindSettingsEvents(dialog);
+
+    // 检查浏览器是否支持 dialog
+    if (typeof dialog.showModal === 'function') {
+      dialog.showModal();
+    } else {
+      // 降级处理：对于不支持 dialog 的浏览器
+      dialog.style.display = 'block';
+      dialog.style.position = 'fixed';
+      dialog.style.top = '50%';
+      dialog.style.left = '50%';
+      dialog.style.transform = 'translate(-50%, -50%)';
+      dialog.style.zIndex = '10000';
+      
+      // 创建背景遮罩
+      const backdrop = document.createElement('div');
+      backdrop.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.6);
+        z-index: 9999;
+      `;
+      backdrop.className = 'dialog-backdrop-fallback';
+      document.body.appendChild(backdrop);
+      
+      console.warn('浏览器不支持 dialog 元素，使用降级方案');
+    }
+  }
+
+  /**
+   * 绑定设置界面事件 - 使用 dialog API
+   */
+  function bindSettingsEvents(dialog) {
+    const closeBtn = dialog.querySelector('.linuxdo-settings-close');
+    const cancelBtn = dialog.querySelector('#cancelSettings');
+    const saveBtn = dialog.querySelector('#saveSettings');
+    const modelToggle = dialog.querySelector('.linuxdo-model-toggle');
+    const modelWrapper = dialog.querySelector('.linuxdo-model-input-wrapper');
+
+    // 关闭对话框的函数
+    const closeDialog = () => {
+      if (typeof dialog.close === 'function') {
+        // 添加关闭动画
+        dialog.setAttribute('closing', '');
+        setTimeout(() => {
+          dialog.close();
+          dialog.remove();
+        }, 200);
+      } else {
+        // 降级处理
+        dialog.remove();
+        const backdrop = document.querySelector('.dialog-backdrop-fallback');
+        if (backdrop) backdrop.remove();
+      }
+    };
+
+    // 绑定关闭事件
+    closeBtn.addEventListener('click', closeDialog);
+    cancelBtn.addEventListener('click', closeDialog);
+
+    // 点击背景关闭 (对于支持 dialog 的浏览器)
+    dialog.addEventListener('click', (e) => {
+      if (e.target === dialog) {
+        closeDialog();
+      }
+    });
+
+    // ESC 键关闭处理
+    dialog.addEventListener('cancel', (e) => {
+      e.preventDefault(); // 阻止默认的 ESC 关闭行为
+      closeDialog(); // 使用我们的关闭动画
+    });
+
+    // 模型选择切换
+    modelToggle.addEventListener('click', () => {
+      const isCustom = modelWrapper.classList.contains('custom-input');
+      if (isCustom) {
+        modelWrapper.classList.remove('custom-input');
+        modelToggle.textContent = '自定义';
+      } else {
+        modelWrapper.classList.add('custom-input');
+        modelToggle.textContent = '预设';
+      }
+    });
+
+    // 保存设置
+    saveBtn.addEventListener('click', (e) => {
+      e.preventDefault(); // 阻止表单提交
+      
+      const useGeminiApi = dialog.querySelector('#useGeminiApi').checked;
+      const apiKey = dialog.querySelector('#geminiApiKey').value.trim();
+      const customPrompt = dialog.querySelector('#customPrompt').value.trim();
+
+      // 获取模型值
+      let modelValue;
+      if (modelWrapper.classList.contains('custom-input')) {
+        modelValue = dialog.querySelector('#geminiModelInput').value.trim();
+      } else {
+        modelValue = dialog.querySelector('#geminiModelSelect').value;
+      }
+
+      // 保存配置
+      setConfig('USE_GEMINI_API_FOR_SUMMARY', useGeminiApi);
+      setConfig('GEMINI_API_KEY', apiKey);
+      setConfig('GEMINI_MODEL', modelValue || DEFAULT_CONFIG.GEMINI_MODEL);
+      setConfig('CUSTOM_SUMMARY_PROMPT', customPrompt || DEFAULT_CONFIG.CUSTOM_SUMMARY_PROMPT);
+
+      // 显示保存成功提示
+      const originalText = saveBtn.textContent;
+      saveBtn.textContent = '已保存 ✓';
+      saveBtn.disabled = true;
+      
+      setTimeout(() => {
+        closeDialog();
+      }, 1200);
+    });
+
+    // 为降级方案添加背景点击关闭
+    if (typeof dialog.showModal !== 'function') {
+      const backdrop = document.querySelector('.dialog-backdrop-fallback');
+      if (backdrop) {
+        backdrop.addEventListener('click', closeDialog);
+      }
+    }
+  }
+
+  // 只在主窗口中注册油猴菜单命令，避免在 iframe 中重复注册
+  if (window === window.top) {
+    GM_registerMenuCommand('设置', showSettingsModal);
+  }
+
+  // ==========================================================
   // 辅助函数 (用于API调用)
   // ==========================================================
-  async function callGeminiAPI(prompt, apiKey, model = 'gemini-1.5-flash') {
+  async function callGeminiAPI(prompt, apiKey, model = 'gemini-2.5-flash-lite') {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
     const headers = {
       'Content-Type': 'application/json'
@@ -358,7 +1026,12 @@
       if (CONFIG.USE_GEMINI_API_FOR_SUMMARY && CONFIG.GEMINI_API_KEY) {
         console.log('尝试使用 Gemini API 总结内容...');
         // 截取前4000字符发送给API，避免过长导致请求失败或费用过高
-        const prompt = `你是一个信息获取专家，可以精准的总结文章的精华内容和重点，请对以下文章内容进行归纳总结，回复不要有对我的问候语，或者《你好这是我的总结》等类似废话，直接返回你的总结，长度不超过${CONFIG.LOCAL_SUMMARY_MAX_CHARS}个字符（或尽可能短，保持中文语义完整）：\n\n${fullTextContent.substring(0, 4000)}`;
+        const contentToSummarize = fullTextContent.substring(0, 4000);
+        const customPrompt = CONFIG.CUSTOM_SUMMARY_PROMPT || DEFAULT_CONFIG.CUSTOM_SUMMARY_PROMPT;
+        const prompt = customPrompt
+          .replace('{maxChars}', CONFIG.LOCAL_SUMMARY_MAX_CHARS)
+          .replace('{content}', contentToSummarize);
+
         try {
           articleData.summary = await callGeminiAPI(prompt, CONFIG.GEMINI_API_KEY, CONFIG.GEMINI_MODEL);
           console.log('Gemini API 总结:', articleData.summary);
@@ -500,6 +1173,12 @@
   // 脚本执行入口
   // ==========================================================
   function initializeScript() {
+    // 只在主窗口中运行脚本功能，避免在 iframe 中重复执行
+    if (window !== window.top) {
+      console.log("在 iframe 中，跳过脚本初始化");
+      return;
+    }
+
     console.log("油猴脚本已尝试初始化。");
 
     // 找到文章标题元素
@@ -542,22 +1221,27 @@
     }
   }
 
-  // 使用 MutationObserver 监听 DOM 变化，这对于动态加载内容的 SPA 非常重要
-  const observer = new MutationObserver((mutationsList, observerInstance) => {
-    // 每次 DOM 变化时都尝试运行初始化函数
-    // initializeScript 内部会判断按钮是否已存在，防止重复添加
-    initializeScript();
-  });
+  // 只在主窗口中初始化脚本功能
+  if (window === window.top) {
+    // 使用 MutationObserver 监听 DOM 变化，这对于动态加载内容的 SPA 非常重要
+    const observer = new MutationObserver((mutationsList, observerInstance) => {
+      // 每次 DOM 变化时都尝试运行初始化函数
+      // initializeScript 内部会判断按钮是否已存在，防止重复添加
+      initializeScript();
+    });
 
-  // 开始观察整个文档主体，包括子元素的添加/移除和子树的更改
-  observer.observe(document.body, { childList: true, subtree: true });
+    // 开始观察整个文档主体，包括子元素的添加/移除和子树的更改
+    observer.observe(document.body, { childList: true, subtree: true });
 
-  // 初始加载时也尝试运行一次，以防页面内容在脚本加载时已经就绪
-  // @run-at document-idle 已经处理了大部分情况，这里是额外的保障
-  if (document.readyState === 'loading') {
-    window.addEventListener('DOMContentLoaded', initializeScript);
+    // 初始加载时也尝试运行一次，以防页面内容在脚本加载时已经就绪
+    // @run-at document-idle 已经处理了大部分情况，这里是额外的保障
+    if (document.readyState === 'loading') {
+      window.addEventListener('DOMContentLoaded', initializeScript);
+    } else {
+      initializeScript();
+    }
   } else {
-    initializeScript();
+    console.log("在 iframe 中，跳过脚本功能初始化");
   }
 
 })();
