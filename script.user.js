@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name          从linux do获取论坛文章数据与复制
 // @namespace     http://tampermonkey.net/
-// @version       0.5
+// @version       0.6
 // @description   从linux do论坛页面获取文章的板块、标题、链接、标签和内容总结，并在标题旁添加复制按钮。支持设置界面配置。
 // @author        @Loveyless https://github.com/Loveyless/linuxdo-share
 // @match         *://*.linux.do/*
@@ -26,12 +26,14 @@
     USE_GEMINI_API_FOR_SUMMARY: false,
     // Gemini API Key，如果 USE_GEMINI_API_FOR_SUMMARY 为 true，则需要填写此项 获取:https://aistudio.google.com/apikey
     GEMINI_API_KEY: '',
+    // Gemini API 基础地址
+    GEMINI_API_BASE_URL: 'https://generativelanguage.googleapis.com',
     // Gemini 模型名称
     GEMINI_MODEL: 'gemini-2.5-flash-lite',
     // 本地内容总结的最大字符数
     LOCAL_SUMMARY_MAX_CHARS: 140,
     // 自定义总结 Prompt
-    CUSTOM_SUMMARY_PROMPT: '你是一个信息获取专家，可以精准的总结文章的精华内容和重点，请对以下文章内容进行归纳总结，你应该以“作者在帖子中表达了”、“作者在帖子中表示”、“作者在该帖子中认为”等类似的文字作为总结的开头。\n\n {content}',
+    CUSTOM_SUMMARY_PROMPT: '你是一个信息获取专家，可以精准的总结文章的精华内容和重点，请对以下文章内容进行归纳总结，你应该以"作者在帖子中表达了"、"作者在帖子中表示"、"作者在该帖子中认为"等类似的文字作为总结的开头。\n\n {content}',
     // 文章复制模板
     ARTICLE_COPY_TEMPLATE: [
       `-{{title}}`,
@@ -712,6 +714,12 @@
           </div>
 
           <div class="linuxdo-settings-field">
+            <label for="geminiApiBaseUrl" class="linuxdo-settings-label">API地址</label>
+            <input type="text" id="geminiApiBaseUrl" class="linuxdo-settings-input" value="${getConfig('GEMINI_API_BASE_URL')}" placeholder="https://generativelanguage.googleapis.com">
+            <div class="linuxdo-settings-description">设置Gemini API的基础地址，可用于配置代理服务器，最后不要加 / </div>
+          </div>
+
+          <div class="linuxdo-settings-field">
             <label for="geminiModel" class="linuxdo-settings-label">AI 模型</label>
             <div class="linuxdo-model-input-wrapper ${isCustomModel ? 'custom-input' : ''}">
               <select id="geminiModelSelect" class="linuxdo-settings-select">
@@ -862,6 +870,7 @@
       
       const useGeminiApi = dialog.querySelector('#useGeminiApi').checked;
       const apiKey = dialog.querySelector('#geminiApiKey').value.trim();
+      const apiBaseUrl = dialog.querySelector('#geminiApiBaseUrl').value.trim();
       const localSummaryMaxChars = parseInt(dialog.querySelector('#localSummaryMaxChars').value.trim()) || DEFAULT_CONFIG.LOCAL_SUMMARY_MAX_CHARS;
       const customPrompt = dialog.querySelector('#customPrompt').value.trim();
 
@@ -876,6 +885,7 @@
       // 保存配置
       setConfig('USE_GEMINI_API_FOR_SUMMARY', useGeminiApi);
       setConfig('GEMINI_API_KEY', apiKey);
+      setConfig('GEMINI_API_BASE_URL', apiBaseUrl || DEFAULT_CONFIG.GEMINI_API_BASE_URL);
       setConfig('GEMINI_MODEL', modelValue || DEFAULT_CONFIG.GEMINI_MODEL);
       setConfig('LOCAL_SUMMARY_MAX_CHARS', localSummaryMaxChars);
       setConfig('CUSTOM_SUMMARY_PROMPT', customPrompt || DEFAULT_CONFIG.CUSTOM_SUMMARY_PROMPT);
@@ -908,7 +918,8 @@
   // 辅助函数 (用于API调用)
   // ==========================================================
   async function callGeminiAPI(prompt, apiKey, model = 'gemini-2.5-flash-lite') {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    const baseUrl = getConfig('GEMINI_API_BASE_URL') || DEFAULT_CONFIG.GEMINI_API_BASE_URL;
+    const url = `${baseUrl}/v1beta/models/${model}:generateContent?key=${apiKey}`;
     const headers = {
       'Content-Type': 'application/json'
     };
