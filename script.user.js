@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name          从linux do获取论坛文章数据与复制
 // @namespace     http://tampermonkey.net/
-// @version       0.6
+// @version       0.7
 // @description   从linux do论坛页面获取文章的板块、标题、链接、标签和内容总结，并在标题旁添加复制按钮。支持设置界面配置。
 // @author        @Loveyless https://github.com/Loveyless/linuxdo-share
 // @match         *://*.linux.do/*
@@ -36,8 +36,8 @@
     CUSTOM_SUMMARY_PROMPT: '你是一个信息获取专家，可以精准的总结文章的精华内容和重点，请对以下文章内容进行归纳总结，你应该以"作者在帖子中表达了"、"作者在帖子中表示"、"作者在该帖子中认为"等类似的文字作为总结的开头。\n\n {content}',
     // 文章复制模板
     ARTICLE_COPY_TEMPLATE: [
-      `-{{title}}`,
-      `@{{username}}({{category}})`, // 增加作者信息
+      `{{title}}`,
+      `@{{username}} - {{category}} / {{tags}}`,
       ``,
       `{{summary}}`,
       ``,
@@ -429,7 +429,7 @@
         .linuxdo-settings-textarea {
             width: 100%;
         }
-        .linuxdo-settings-input,
+        input[type].linuxdo-settings-input,
         .linuxdo-settings-select,
         .linuxdo-settings-textarea {
             padding: 12px 16px;
@@ -1084,6 +1084,7 @@
     const userData = {
       username: '',
       category: '', // 统一使用 category
+      tags: ''
     };
 
     // 获取板块名称
@@ -1100,6 +1101,12 @@
       if (usernameElement) {
         userData.username = usernameElement.textContent.trim();
       }
+    }
+    	
+    // 获取标签
+    const TagsElement = document.querySelector('.list-tags');
+    if (TagsElement) {
+      userData.tags = TagsElement.textContent.trim();
     }
 
     return userData;
@@ -1237,6 +1244,7 @@
         content: !!articleRootElement,
         userData: !!userDataContainer,
         category: !!categoryBadge,
+        tags: !!tags
       });
     }
   }
