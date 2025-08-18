@@ -424,7 +424,7 @@
         html[style*="color-scheme: dark"] .linuxdo-settings-label {
             color: #d1d5db;
         }
-        
+
         .linuxdo-settings-input,
         .linuxdo-settings-textarea {
             width: 100%;
@@ -789,7 +789,7 @@
       dialog.style.left = '50%';
       dialog.style.transform = 'translate(-50%, -50%)';
       dialog.style.zIndex = '10000';
-      
+
       // 创建背景遮罩
       const backdrop = document.createElement('div');
       backdrop.style.cssText = `
@@ -803,7 +803,7 @@
       `;
       backdrop.className = 'dialog-backdrop-fallback';
       document.body.appendChild(backdrop);
-      
+
       console.warn('浏览器不支持 dialog 元素，使用降级方案');
     }
   }
@@ -867,7 +867,7 @@
     // 保存设置
     saveBtn.addEventListener('click', (e) => {
       e.preventDefault(); // 阻止表单提交
-      
+
       const useGeminiApi = dialog.querySelector('#useGeminiApi').checked;
       const apiKey = dialog.querySelector('#geminiApiKey').value.trim();
       const apiBaseUrl = dialog.querySelector('#geminiApiBaseUrl').value.trim();
@@ -894,7 +894,7 @@
       const originalText = saveBtn.textContent;
       saveBtn.textContent = '已保存 ✓';
       saveBtn.disabled = true;
-      
+
       setTimeout(() => {
         closeDialog();
       }, 1200);
@@ -1088,9 +1088,9 @@
     };
 
     // 获取板块名称
-    const categoryElement = document.querySelector('.badge-category__name');
+    const categoryElement = document.querySelectorAll('.badge-category');
     if (categoryElement) {
-      userData.category = categoryElement.textContent.trim();
+      userData.category = Array.from(categoryElement).map(x=> x.textContent.trim()).join(' ');
     }
 
     // 获取用户名和用户头衔
@@ -1102,7 +1102,7 @@
         userData.username = usernameElement.textContent.trim();
       }
     }
-    	
+
     // 获取标签
     const TagsElement = document.querySelector('.list-tags');
     if (TagsElement) {
@@ -1214,7 +1214,8 @@
     const articleRootElement = document.querySelector('.cooked');
     // 找到用户数据、分类和标签的必要元素，确保它们都已加载
     const userDataContainer = document.querySelector('.topic-meta-data');
-    const categoryBadge = document.querySelector('.badge-category__name');
+    const categoryBadge = document.querySelector('.badge-category');
+    const tagsElement = document.querySelector('.list-tags');
 
     // 只有当所有关键元素都存在时才进行操作
     if (titleLinkElement && articleRootElement && userDataContainer && categoryBadge) {
@@ -1244,7 +1245,7 @@
         content: !!articleRootElement,
         userData: !!userDataContainer,
         category: !!categoryBadge,
-        tags: !!tags
+        tags: !!tagsElement
       });
     }
   }
