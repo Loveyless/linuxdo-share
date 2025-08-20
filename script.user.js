@@ -40,7 +40,6 @@
       `@{{username}}({{category}})`, // 增加作者信息
       ``,
       `{{summary}}`,
-      ``,
       `{{link}}`,
     ].join('\n')
   };
