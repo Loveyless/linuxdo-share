@@ -1052,7 +1052,7 @@
           .replace('{content}', contentToSummarize);
 
         try {
-          articleData.summary = await callGeminiAPI(prompt, CONFIG.GEMINI_API_KEY, CONFIG.GEMINI_MODEL);
+          articleData.summary = `[AI总结]：` + await callGeminiAPI(prompt, CONFIG.GEMINI_API_KEY, CONFIG.GEMINI_MODEL);
           console.log('Gemini API 总结:', articleData.summary);
           // 清理 Gemini 返回的可能多余的格式或问候语
           articleData.summary = articleData.summary.replace(/^(.)\s*(\S+)/, '$1$2').trim();
