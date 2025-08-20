@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name          从linux do获取论坛文章数据与复制
 // @namespace     http://tampermonkey.net/
-// @version       0.9
+// @version       0.10
 // @description   从linux do论坛页面获取文章的板块、标题、链接、标签和内容总结，并在标题旁添加复制按钮。支持设置界面配置。
 // @author        @Loveyless https://github.com/Loveyless/linuxdo-share
 // @match         *://*.linux.do/*
