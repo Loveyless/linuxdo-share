@@ -1086,9 +1086,11 @@
     };
 
     // 获取板块名称
-    const categoryElement = document.querySelectorAll('.badge-category');
+    const categoryElement = document.querySelectorAll('.topic-category .badge-category__wrapper');
     if (categoryElement) {
-      userData.category = Array.from(categoryElement).map(x=> x.textContent.trim()).join(' ');
+      const categoryArr = Array.from(categoryElement)
+      const lastIndex = categoryArr.length - 1
+      userData.category = categoryArr[lastIndex].textContent.trim()
     }
 
     // 获取用户名和用户头衔
@@ -1212,7 +1214,7 @@
     const articleRootElement = document.querySelector('.cooked');
     // 找到用户数据、分类和标签的必要元素，确保它们都已加载
     const userDataContainer = document.querySelector('.topic-meta-data');
-    const categoryBadge = document.querySelector('.badge-category');
+    const categoryBadge = document.querySelector('.topic-category .badge-category__wrapper');
     const tagsElement = document.querySelector('.list-tags');
 
     // 只有当所有关键元素都存在时才进行操作
