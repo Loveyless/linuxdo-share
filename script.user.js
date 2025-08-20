@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name          从linux do获取论坛文章数据与复制
 // @namespace     http://tampermonkey.net/
-// @version       0.6
+// @version       0.8
 // @description   从linux do论坛页面获取文章的板块、标题、链接、标签和内容总结，并在标题旁添加复制按钮。支持设置界面配置。
 // @author        @Loveyless https://github.com/Loveyless/linuxdo-share
 // @match         *://*.linux.do/*
@@ -31,12 +31,12 @@
     // Gemini 模型名称
     GEMINI_MODEL: 'gemini-2.5-flash-lite',
     // 本地内容总结的最大字符数
-    LOCAL_SUMMARY_MAX_CHARS: 140,
+    LOCAL_SUMMARY_MAX_CHARS: 90,
     // 自定义总结 Prompt
-    CUSTOM_SUMMARY_PROMPT: '你是一个信息获取专家，可以精准的总结文章的精华内容和重点，请对以下文章内容进行归纳总结，你应该以"作者在帖子中表达了"、"作者在帖子中表示"、"作者在该帖子中认为"等类似的文字作为总结的开头。\n\n {content}',
+    CUSTOM_SUMMARY_PROMPT: `你是一个信息获取专家，可以精准的总结文章的精华内容和重点，请对以下文章内容进行归纳总结，回复不要有对我的问候语，或者《你好这是我的总结》等类似废话，直接返回你的总结，长度不超过{maxChars}个字符（或尽可能短，保持中文语义完整）： {content}`,
     // 文章复制模板
     ARTICLE_COPY_TEMPLATE: [
-      `-{{title}}`,
+      `{{title}}`,
       `@{{username}}({{category}})`, // 增加作者信息
       ``,
       `{{summary}}`,
