@@ -37,7 +37,7 @@
     // 文章复制模板
     ARTICLE_COPY_TEMPLATE: [
       `{{title}}`,
-      `@{{username}}({{category}})`, // 增加作者信息
+      `@{{username}} - {{category}} / {{tags}}`,
       ``,
       `{{summary}}`,
       `{{link}}`,
@@ -428,7 +428,7 @@
         .linuxdo-settings-textarea {
             width: 100%;
         }
-        .linuxdo-settings-input,
+        input[type].linuxdo-settings-input,
         .linuxdo-settings-select,
         .linuxdo-settings-textarea {
             padding: 12px 16px;
