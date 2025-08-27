@@ -18,9 +18,14 @@
 (function () {
   'use strict';
 
+  // #region 脚本配置与常量
   // ==========================================================
-  // 配置项和默认值
+  // 脚本配置与常量
   // ==========================================================
+
+  /**
+   * @description 默认配置项，当油猴存储中没有对应值时使用。
+   */
   const DEFAULT_CONFIG = {
     // 是否启用 Gemini API 进行内容总结
     USE_GEMINI_API_FOR_SUMMARY: false,
@@ -44,17 +49,44 @@
     ].join('\n')
   };
 
-  // 获取配置值的函数
+  /**
+   * @description 预定义的 Gemini 模型选项，用于设置界面的下拉选择。
+   */
+  const PREDEFINED_MODELS = [
+    'gemini-2.0-flash-lite',
+    'gemini-2.5-pro',
+    'gemini-2.5-flash'
+  ];
+  // #endregion
+
+  // #region 配置管理
+  // ==========================================================
+  // 配置管理
+  // ==========================================================
+
+  /**
+   * @description 从油猴存储中获取指定键的配置值。
+   * @param {string} key - 配置项的键名。
+   * @returns {*} 对应配置项的值，如果不存在则返回默认值。
+   */
   function getConfig(key) {
     return GM_getValue(key, DEFAULT_CONFIG[key]);
   }
 
-  // 设置配置值的函数
+  /**
+   * @description 将配置值保存到油猴存储中。
+   * @param {string} key - 配置项的键名。
+   * @param {*} value - 要保存的配置值。
+   */
   function setConfig(key, value) {
     GM_setValue(key, value);
   }
 
-  // 动态配置对象
+  /**
+   * @description 创建一个动态配置代理对象。
+   * 当访问 CONFIG.someKey 时，会自动调用 getConfig('someKey')。
+   * 当设置 CONFIG.someKey = value 时，会自动调用 setConfig('someKey', value)。
+   */
   const CONFIG = new Proxy({}, {
     get(target, prop) {
       return getConfig(prop);
@@ -64,10 +96,16 @@
       return true;
     }
   });
+  // #endregion
 
+  // #region 样式注入
   // ==========================================================
-  // CSS 样式定义
+  // 样式注入
   // ==========================================================
+
+  /**
+   * @description 脚本所需的全部 CSS 样式字符串。
+   */
   const copyBtnStyle = /*css*/`
         .copy-button { /* 统一命名为 .copy-button */
             --button-bg: #e5e6eb;
@@ -655,8 +693,9 @@
     `;
 
   /**
-   * 添加样式到页面，优先使用 GM_addStyle，否则使用 DOM 方法。
-   * @param {string} cssText - CSS 文本。
+   * @description 将 CSS 样式注入到页面中。
+   * 优先使用 GM_addStyle API，如果不可用，则创建一个 <style> 标签并插入到 <head> 中。
+   * @param {string} cssText - 要注入的 CSS 样式字符串。
    */
   function addStyle(cssText) {
     if (typeof GM_addStyle !== 'undefined') {
@@ -667,255 +706,20 @@
       (document.head || document.documentElement).appendChild(styleNode);
     }
   }
+  // #endregion
 
-  // 应用样式
-  addStyle(copyBtnStyle);
-
+  // #region 通用辅助函数
   // ==========================================================
-  // 设置界面相关函数
+  // 通用辅助函数
   // ==========================================================
-
-  // 预定义的模型选项
-  const PREDEFINED_MODELS = [
-    'gemini-2.0-flash-lite',
-    'gemini-2.5-pro',
-    'gemini-2.5-flash'
-  ];
 
   /**
-   * 创建设置界面 - 使用 dialog 标签
+   * @description 调用 Gemini API 以获取内容总结。
+   * @param {string} prompt - 发送给 API 的完整提示词。
+   * @param {string} apiKey -用户的 Gemini API Key。
+   * @param {string} [model='gemini-2.5-flash-lite'] - 要使用的 Gemini 模型名称。
+   * @returns {Promise<string>} 返回 API 生成的文本内容的 Promise。
    */
-  function createSettingsModal() {
-    const dialog = document.createElement('dialog');
-    dialog.className = 'linuxdo-settings-dialog';
-
-    const currentModel = getConfig('GEMINI_MODEL');
-    const isCustomModel = !PREDEFINED_MODELS.includes(currentModel);
-
-    dialog.innerHTML = `
-      <div class="linuxdo-settings-content">
-        <div class="linuxdo-settings-header">
-          <h2 class="linuxdo-settings-title">LinuxDo 分享助手设置</h2>
-          <button class="linuxdo-settings-close" type="button">&times;</button>
-        </div>
-        <form class="linuxdo-settings-form" method="dialog">
-          <div class="linuxdo-settings-field">
-            <div class="linuxdo-settings-checkbox-wrapper">
-              <input type="checkbox" id="useGeminiApi" class="linuxdo-settings-checkbox" ${getConfig('USE_GEMINI_API_FOR_SUMMARY') ? 'checked' : ''}>
-              <label for="useGeminiApi" class="linuxdo-settings-label">启用 AI 自动总结</label>
-            </div>
-            <div class="linuxdo-settings-description">开启后将使用 Gemini API 对文章内容进行智能总结</div>
-          </div>
-
-          <div class="linuxdo-settings-field">
-            <label for="geminiApiKey" class="linuxdo-settings-label">Gemini API Key</label>
-            <input type="password" id="geminiApiKey" class="linuxdo-settings-input" value="${getConfig('GEMINI_API_KEY')}" placeholder="请输入您的 Gemini API Key">
-          </div>
-
-          <div class="linuxdo-settings-field">
-            <label for="geminiApiBaseUrl" class="linuxdo-settings-label">API地址</label>
-            <input type="text" id="geminiApiBaseUrl" class="linuxdo-settings-input" value="${getConfig('GEMINI_API_BASE_URL')}" placeholder="https://generativelanguage.googleapis.com">
-            <div class="linuxdo-settings-description">设置Gemini API的基础地址，可用于配置代理服务器，最后不要加 / </div>
-          </div>
-
-          <div class="linuxdo-settings-field">
-            <label for="geminiModel" class="linuxdo-settings-label">AI 模型</label>
-            <div class="linuxdo-model-input-wrapper ${isCustomModel ? 'custom-input' : ''}">
-              <select id="geminiModelSelect" class="linuxdo-settings-select">
-                ${PREDEFINED_MODELS.map(model =>
-                  `<option value="${model}" ${model === currentModel ? 'selected' : ''}>${model}</option>`
-                ).join('')}
-              </select>
-              <input type="text" id="geminiModelInput" class="linuxdo-settings-input" value="${isCustomModel ? currentModel : ''}" placeholder="输入自定义模型名称">
-              <button type="button" class="linuxdo-model-toggle">${isCustomModel ? '预设' : '自定义'}</button>
-            </div>
-            <div class="linuxdo-settings-description">选择要使用的 Gemini 模型，或输入自定义模型名称</div>
-          </div>
-
-          <div class="linuxdo-settings-field">
-            <label for="localSummaryMaxChars" class="linuxdo-settings-label">本地总结最大字符数</label>
-            <input type="number" id="localSummaryMaxChars" class="linuxdo-settings-input" value="${getConfig('LOCAL_SUMMARY_MAX_CHARS')}" placeholder="140" min="1" max="10000">
-            <div class="linuxdo-settings-description">设置本地内容总结的最大字符数，范围：1-10000</div>
-          </div>
-
-          <div class="linuxdo-settings-field">
-            <label for="customPrompt" class="linuxdo-settings-label">自定义总结 Prompt</label>
-            <textarea id="customPrompt" class="linuxdo-settings-textarea" placeholder="输入自定义的总结提示词">${getConfig('CUSTOM_SUMMARY_PROMPT')}</textarea>
-            <div class="linuxdo-settings-description">可以使用 {content} 作为占位符，代表帖子正文内容</div>
-          </div>
-
-          <div class="linuxdo-settings-buttons">
-            <button type="button" class="linuxdo-settings-button" id="cancelSettings">取消</button>
-            <button type="button" class="linuxdo-settings-button primary" id="saveSettings">保存</button>
-          </div>
-        </form>
-      </div>
-    `;
-
-    return dialog;
-  }
-
-  /**
-   * 显示设置界面 - 使用 dialog API
-   */
-  function showSettingsModal() {
-    // 确保只在主窗口中显示设置界面，避免在 iframe 中显示
-    if (window !== window.top) {
-      console.log('在 iframe 中，跳过显示设置界面');
-      return;
-    }
-
-    // 移除已存在的对话框
-    const existingDialog = document.querySelector('.linuxdo-settings-dialog');
-    if (existingDialog) {
-      existingDialog.remove();
-    }
-
-    const dialog = createSettingsModal();
-    document.body.appendChild(dialog);
-
-    // 绑定事件
-    bindSettingsEvents(dialog);
-
-    // 检查浏览器是否支持 dialog
-    if (typeof dialog.showModal === 'function') {
-      dialog.showModal();
-    } else {
-      // 降级处理：对于不支持 dialog 的浏览器
-      dialog.style.display = 'block';
-      dialog.style.position = 'fixed';
-      dialog.style.top = '50%';
-      dialog.style.left = '50%';
-      dialog.style.transform = 'translate(-50%, -50%)';
-      dialog.style.zIndex = '10000';
-
-      // 创建背景遮罩
-      const backdrop = document.createElement('div');
-      backdrop.style.cssText = `
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(0, 0, 0, 0.6);
-        z-index: 9999;
-      `;
-      backdrop.className = 'dialog-backdrop-fallback';
-      document.body.appendChild(backdrop);
-
-      console.warn('浏览器不支持 dialog 元素，使用降级方案');
-    }
-  }
-
-  /**
-   * 绑定设置界面事件 - 使用 dialog API
-   */
-  function bindSettingsEvents(dialog) {
-    const closeBtn = dialog.querySelector('.linuxdo-settings-close');
-    const cancelBtn = dialog.querySelector('#cancelSettings');
-    const saveBtn = dialog.querySelector('#saveSettings');
-    const modelToggle = dialog.querySelector('.linuxdo-model-toggle');
-    const modelWrapper = dialog.querySelector('.linuxdo-model-input-wrapper');
-
-    // 关闭对话框的函数
-    const closeDialog = () => {
-      if (typeof dialog.close === 'function') {
-        // 添加关闭动画
-        dialog.setAttribute('closing', '');
-        setTimeout(() => {
-          dialog.close();
-          dialog.remove();
-        }, 200);
-      } else {
-        // 降级处理
-        dialog.remove();
-        const backdrop = document.querySelector('.dialog-backdrop-fallback');
-        if (backdrop) backdrop.remove();
-      }
-    };
-
-    // 绑定关闭事件
-    closeBtn.addEventListener('click', closeDialog);
-    cancelBtn.addEventListener('click', closeDialog);
-
-    // 点击背景关闭 (对于支持 dialog 的浏览器)
-    dialog.addEventListener('click', (e) => {
-      if (e.target === dialog) {
-        closeDialog();
-      }
-    });
-
-    // ESC 键关闭处理
-    dialog.addEventListener('cancel', (e) => {
-      e.preventDefault(); // 阻止默认的 ESC 关闭行为
-      closeDialog(); // 使用我们的关闭动画
-    });
-
-    // 模型选择切换
-    modelToggle.addEventListener('click', () => {
-      const isCustom = modelWrapper.classList.contains('custom-input');
-      if (isCustom) {
-        modelWrapper.classList.remove('custom-input');
-        modelToggle.textContent = '自定义';
-      } else {
-        modelWrapper.classList.add('custom-input');
-        modelToggle.textContent = '预设';
-      }
-    });
-
-    // 保存设置
-    saveBtn.addEventListener('click', (e) => {
-      e.preventDefault(); // 阻止表单提交
-
-      const useGeminiApi = dialog.querySelector('#useGeminiApi').checked;
-      const apiKey = dialog.querySelector('#geminiApiKey').value.trim();
-      const apiBaseUrl = dialog.querySelector('#geminiApiBaseUrl').value.trim();
-      const localSummaryMaxChars = parseInt(dialog.querySelector('#localSummaryMaxChars').value.trim()) || DEFAULT_CONFIG.LOCAL_SUMMARY_MAX_CHARS;
-      const customPrompt = dialog.querySelector('#customPrompt').value.trim();
-
-      // 获取模型值
-      let modelValue;
-      if (modelWrapper.classList.contains('custom-input')) {
-        modelValue = dialog.querySelector('#geminiModelInput').value.trim();
-      } else {
-        modelValue = dialog.querySelector('#geminiModelSelect').value;
-      }
-
-      // 保存配置
-      setConfig('USE_GEMINI_API_FOR_SUMMARY', useGeminiApi);
-      setConfig('GEMINI_API_KEY', apiKey);
-      setConfig('GEMINI_API_BASE_URL', apiBaseUrl || DEFAULT_CONFIG.GEMINI_API_BASE_URL);
-      setConfig('GEMINI_MODEL', modelValue || DEFAULT_CONFIG.GEMINI_MODEL);
-      setConfig('LOCAL_SUMMARY_MAX_CHARS', localSummaryMaxChars);
-      setConfig('CUSTOM_SUMMARY_PROMPT', customPrompt || DEFAULT_CONFIG.CUSTOM_SUMMARY_PROMPT);
-
-      // 显示保存成功提示
-      const originalText = saveBtn.textContent;
-      saveBtn.textContent = '已保存 ✓';
-      saveBtn.disabled = true;
-
-      setTimeout(() => {
-        closeDialog();
-      }, 1200);
-    });
-
-    // 为降级方案添加背景点击关闭
-    if (typeof dialog.showModal !== 'function') {
-      const backdrop = document.querySelector('.dialog-backdrop-fallback');
-      if (backdrop) {
-        backdrop.addEventListener('click', closeDialog);
-      }
-    }
-  }
-
-  // 只在主窗口中注册油猴菜单命令，避免在 iframe 中重复注册
-  if (window === window.top) {
-    GM_registerMenuCommand('设置', showSettingsModal);
-  }
-
-  // ==========================================================
-  // 辅助函数 (用于API调用)
-  // ==========================================================
   async function callGeminiAPI(prompt, apiKey, model = 'gemini-2.5-flash-lite') {
     const baseUrl = getConfig('GEMINI_API_BASE_URL') || DEFAULT_CONFIG.GEMINI_API_BASE_URL;
     const url = `${baseUrl}/v1beta/models/${model}:generateContent?key=${apiKey}`;
@@ -962,14 +766,11 @@
     });
   }
 
-  // ==========================================================
-  // 复制和错误处理函数 (通用化)
-  // ==========================================================
   /**
-   * 处理复制失败。
-   * @param {Object} param - 包含相关元素的参数对象。
-   * @param {Element} param.element - 触发复制的按钮元素。
-   * @param {Error} param.error - 错误对象。
+   * @description 处理复制操作失败后的 UI 反馈。
+   * @param {object} param - 参数对象。
+   * @param {HTMLElement} param.element - 触发复制操作的按钮元素。
+   * @param {Error} [param.error=new Error()] - 捕获到的错误对象。
    */
   function handleCopyError({ element, error = new Error() }) {
     element.classList.add('copy-failed');
@@ -981,10 +782,10 @@
   }
 
   /**
-   * 将文本复制到剪贴板。
-   * @param {Object} param - 包含相关元素的参数对象。
-   * @param {Element} param.element - 触发复制的按钮元素。
-   * @param {string} param.text - 要复制的文本。
+   * @description 将指定的文本复制到用户的剪贴板。
+   * @param {object} param - 参数对象。
+   * @param {HTMLElement} param.element - 触发复制操作的按钮元素。
+   * @param {string} param.text - 要复制到剪贴板的文本。
    */
   function copyTextToClipboard({ element, text }) {
     navigator.clipboard.writeText(text).then(function () {
@@ -998,103 +799,33 @@
       handleCopyError({ element, error });
     });
   }
+  // #endregion
 
+  // #region 核心数据提取
   // ==========================================================
-  // 主要数据获取函数
+  // 核心数据提取
   // ==========================================================
-  /**
-   * 从文章的DOM元素中提取数据，包括板块、标题、链接、标签和内容总结。
-   * @param {Element} titleElement 文章标题的a.fancy-title元素。
-   * @param {Element} articleRootElement 文章的主内容DOM元素，例如 .cooked。
-   * @returns {Promise<Object>} 包含文章数据的Promise。
-   */
-  async function getArticleData(titleElement, articleRootElement) {
-    const userData = getUserData(); // 获取用户、分类、标签数据
-
-    const articleData = {
-      ...userData, // 合并用户、分类和标签数据
-      title: '',
-      link: '',
-      summary: '',
-    };
-
-    if (titleElement) {
-      // 直接获取 <a> 标签的文本内容，通常它直接包含标题
-      let titleText = titleElement.textContent.trim();
-      let titleLink = titleElement.href || '';
-      articleData.title = titleText;
-      articleData.link = titleLink;
-    }
-
-    // 获取内容并进行总结
-    if (articleRootElement) {
-      // 克隆元素，以便在处理时移除不必要的节点，不影响原页面
-      const clonedArticleContent = articleRootElement.cloneNode(true);
-
-      // 移除通常不用于总结的内容元素
-      // 根据实际情况调整这些选择器，以排除掉不需要总结的部分
-      clonedArticleContent.querySelectorAll(
-        'pre, code, blockquote, img, .meta, .discourse-footnote-link, .emoji, ' +
-        '.signature, .system-message, .post-links, .hidden'
-      ).forEach(el => el.remove());
-
-      let fullTextContent = clonedArticleContent.textContent.trim();
-      // 清理多余的换行和空白字符
-      fullTextContent = fullTextContent.replace(/\s*\n\s*/g, '\n').replace(/\n{2,}/g, '\n\n').trim();
-
-      if (CONFIG.USE_GEMINI_API_FOR_SUMMARY && CONFIG.GEMINI_API_KEY) {
-        console.log('尝试使用 Gemini API 总结内容...');
-        // 截取前4000字符发送给API，避免过长导致请求失败或费用过高
-        const contentToSummarize = fullTextContent.substring(0, 4000);
-        const customPrompt = CONFIG.CUSTOM_SUMMARY_PROMPT || DEFAULT_CONFIG.CUSTOM_SUMMARY_PROMPT;
-        const prompt = customPrompt
-          .replace('{maxChars}', CONFIG.LOCAL_SUMMARY_MAX_CHARS)
-          .replace('{content}', contentToSummarize);
-
-        try {
-          articleData.summary = `[AI总结]：` + await callGeminiAPI(prompt, CONFIG.GEMINI_API_KEY, CONFIG.GEMINI_MODEL);
-          console.log('Gemini API 总结:', articleData.summary);
-          // 清理 Gemini 返回的可能多余的格式或问候语
-          articleData.summary = articleData.summary.replace(/^(.)\s*(\S+)/, '$1$2').trim();
-        } catch (error) {
-          console.error('Gemini API 总结失败:', error);
-          // API 失败时，回退到本地截取
-          articleData.summary = fullTextContent.substring(0, CONFIG.LOCAL_SUMMARY_MAX_CHARS) + (fullTextContent.length > CONFIG.LOCAL_SUMMARY_MAX_CHARS ? '...' : '');
-        }
-      } else {
-        // 本地简单截取
-        articleData.summary = fullTextContent.substring(0, CONFIG.LOCAL_SUMMARY_MAX_CHARS) + (fullTextContent.length > CONFIG.LOCAL_SUMMARY_MAX_CHARS ? '...' : '');
-        if (!CONFIG.GEMINI_API_KEY && CONFIG.USE_GEMINI_API_FOR_SUMMARY) {
-          console.warn('未提供 Gemini API Key 或未启用 API 总结，将使用本地简单截取。');
-        }
-      }
-    }
-
-    return articleData;
-  }
 
   /**
-   * 从文章的DOM元素中提取用户数据，包括用户名、用户头衔、板块和标签。
-   * @returns {Object} 包含用户数据的对象。
-   * @property {string} username - 用户名。
-   * @property {string} category - 文章所属板块。
+   * @description 从页面 DOM 中提取当前文章的作者、分类和标签信息。
+   * @returns {{username: string, category: string, tags: string}} 包含用户、分类和标签数据的对象。
    */
   function getUserData() {
     const userData = {
       username: '',
       category: '', // 统一使用 category
+      tags: '',
     };
 
     // 获取板块名称
     const categoryElement = document.querySelectorAll('.topic-category .badge-category__wrapper');
     if (categoryElement) {
-      const categoryArr = Array.from(categoryElement)
-      const lastIndex = categoryArr.length - 1
-      userData.category = categoryArr[lastIndex].textContent.trim()
+      const categoryArr = Array.from(categoryElement);
+      const lastIndex = categoryArr.length - 1;
+      userData.category = categoryArr[lastIndex].textContent.trim();
     }
 
-    // 获取用户名和用户头衔
-    // Discourse 中，发帖人的信息通常在 .topic-meta-data 或 .post-stream .post:first-of-type .main-post-list-item 内部
+    // 获取用户名
     const postAuthorContainer = document.querySelector('.topic-meta-data, .post-stream .post:first-of-type');
     if (postAuthorContainer) {
       const usernameElement = postAuthorContainer.querySelector('.names .first.full-name a, .username a');
@@ -1112,24 +843,86 @@
     return userData;
   }
 
-
-  // ==========================================================
-  // 新增：在标题后添加复制按钮
-  // ==========================================================
   /**
-   * 在文章标题后添加复制按钮。
-   * @param {Element} titleElement - 文章标题的a.fancy-title元素。
-   * @param {Element} articleRootElement - 包含文章所有信息的根DOM元素。
+   * @description 从页面 DOM 中提取并整合文章的完整数据。
+   * @param {HTMLElement} titleElement - 文章标题的 <a> 元素。
+   * @param {HTMLElement} articleRootElement - 文章内容的根元素 (通常是 .cooked)。
+   * @returns {Promise<object>} 返回一个包含文章所有数据的 Promise 对象。
+   */
+  async function getArticleData(titleElement, articleRootElement) {
+    const userData = getUserData(); // 获取用户、分类、标签数据
+
+    const articleData = {
+      ...userData, // 合并用户、分类和标签数据
+      title: '',
+      link: '',
+      summary: '',
+    };
+
+    if (titleElement) {
+      articleData.title = titleElement.textContent.trim();
+      articleData.link = titleElement.href || '';
+    }
+
+    // 获取内容并进行总结
+    if (articleRootElement) {
+      const clonedArticleContent = articleRootElement.cloneNode(true);
+
+      // 移除不用于总结的内容元素
+      clonedArticleContent.querySelectorAll(
+        'pre, code, blockquote, img, .meta, .discourse-footnote-link, .emoji, ' +
+        '.signature, .system-message, .post-links, .hidden'
+      ).forEach(el => el.remove());
+
+      let fullTextContent = clonedArticleContent.textContent.trim();
+      fullTextContent = fullTextContent.replace(/\s*\n\s*/g, '\n').replace(/\n{2,}/g, '\n\n').trim();
+
+      if (CONFIG.USE_GEMINI_API_FOR_SUMMARY && CONFIG.GEMINI_API_KEY) {
+        console.log('尝试使用 Gemini API 总结内容...');
+        const contentToSummarize = fullTextContent.substring(0, 4000);
+        const customPrompt = CONFIG.CUSTOM_SUMMARY_PROMPT || DEFAULT_CONFIG.CUSTOM_SUMMARY_PROMPT;
+        const prompt = customPrompt
+          .replace('{maxChars}', CONFIG.LOCAL_SUMMARY_MAX_CHARS)
+          .replace('{content}', contentToSummarize);
+
+        try {
+          articleData.summary = `[AI总结]：` + await callGeminiAPI(prompt, CONFIG.GEMINI_API_KEY, CONFIG.GEMINI_MODEL);
+          console.log('Gemini API 总结:', articleData.summary);
+          articleData.summary = articleData.summary.replace(/^(.)\s*(\S+)/, '$1$2').trim();
+        } catch (error) {
+          console.error('Gemini API 总结失败:', error);
+          articleData.summary = fullTextContent.substring(0, CONFIG.LOCAL_SUMMARY_MAX_CHARS) + (fullTextContent.length > CONFIG.LOCAL_SUMMARY_MAX_CHARS ? '...' : '');
+        }
+      } else {
+        articleData.summary = fullTextContent.substring(0, CONFIG.LOCAL_SUMMARY_MAX_CHARS) + (fullTextContent.length > CONFIG.LOCAL_SUMMARY_MAX_CHARS ? '...' : '');
+        if (!CONFIG.GEMINI_API_KEY && CONFIG.USE_GEMINI_API_FOR_SUMMARY) {
+          console.warn('未提供 Gemini API Key 或未启用 API 总结，将使用本地简单截取。');
+        }
+      }
+    }
+
+    return articleData;
+  }
+  // #endregion
+
+  // #region UI 交互
+  // ==========================================================
+  // UI 交互
+  // ==========================================================
+
+  /**
+   * @description 在文章标题旁边创建一个复制按钮并添加到页面中。
+   * @param {HTMLElement} titleElement - 文章标题的 <a> 元素。
+   * @param {HTMLElement} articleRootElement - 文章内容的根元素。
    */
   function addCopyButtonToArticleTitle(titleElement, articleRootElement) {
-    // 检查是否已经添加了复制按钮，避免重复
     if (titleElement.nextElementSibling && titleElement.nextElementSibling.classList.contains('article-copy-button')) {
       console.log('复制按钮已存在，跳过添加。');
       return;
     }
 
     const copyButton = document.createElement('button');
-    copyButton.className = 'copy-button article-copy-button'; // 使用通用样式，并添加特有类
+    copyButton.className = 'copy-button article-copy-button';
     copyButton.innerHTML = /*html*/`
             <span data-text-initial="复制文章信息" data-text-end="已复制" data-text-failed="复制失败" class="tooltip"></span>
             <span>
@@ -1158,49 +951,258 @@
             </span>
         `;
 
-    // 插入到标题链接的后面
     titleElement.parentNode.insertBefore(copyButton, titleElement.nextSibling);
 
     copyButton.addEventListener('click', async (e) => {
-      e.stopPropagation(); // 阻止点击按钮时跳转到文章链接
+      e.stopPropagation();
 
-      // 避免在处理期间重复点击
       if (copyButton.classList.contains('loading')) {
         return;
       }
 
-      // 1. 立即进入 Loading 状态
       copyButton.classList.add('loading');
-      copyButton.disabled = true; // 禁用按钮，防止重复点击
+      copyButton.disabled = true;
 
       try {
-        // 获取文章数据（这一步可能会因为API调用而耗时）
         const articleData = await getArticleData(titleElement, articleRootElement);
         console.log('获取到的文章数据:', articleData);
 
-        // 根据模板格式化文本
         let formattedText = CONFIG.ARTICLE_COPY_TEMPLATE.replace(/{{(\w+)}}/g, (match, key) => {
           return articleData[key] !== undefined ? articleData[key] : match;
         });
-        // 清理多余空行，保留一行空行
         formattedText = formattedText.replace(/\n\n+/g, '\n\n').trim();
 
         copyTextToClipboard({ element: copyButton, text: formattedText });
       } catch (error) {
         handleCopyError({ element: copyButton, error });
       } finally {
-        // 3. 无论成功或失败，最后都移除 Loading 状态
         copyButton.classList.remove('loading');
-        copyButton.disabled = false; // 重新启用按钮
+        copyButton.disabled = false;
       }
     });
   }
+  // #endregion
 
+  // #region 设置界面
   // ==========================================================
-  // 脚本执行入口
+  // 设置界面
   // ==========================================================
+
+  /**
+   * @description 创建设置界面的 HTML 结构。
+   * @returns {HTMLDialogElement} 返回创建的 dialog 元素。
+   */
+  function createSettingsModal() {
+    const dialog = document.createElement('dialog');
+    dialog.className = 'linuxdo-settings-dialog';
+
+    const currentModel = getConfig('GEMINI_MODEL');
+    const isCustomModel = !PREDEFINED_MODELS.includes(currentModel);
+
+    dialog.innerHTML = `
+      <div class="linuxdo-settings-content">
+        <div class="linuxdo-settings-header">
+          <h2 class="linuxdo-settings-title">LinuxDo 分享助手设置</h2>
+          <button class="linuxdo-settings-close" type="button">&times;</button>
+        </div>
+        <form class="linuxdo-settings-form" method="dialog">
+          <div class="linuxdo-settings-field">
+            <div class="linuxdo-settings-checkbox-wrapper">
+              <input type="checkbox" id="useGeminiApi" class="linuxdo-settings-checkbox" ${getConfig('USE_GEMINI_API_FOR_SUMMARY') ? 'checked' : ''}>
+              <label for="useGeminiApi" class="linuxdo-settings-label">启用 AI 自动总结</label>
+            </div>
+            <div class="linuxdo-settings-description">开启后将使用 Gemini API 对文章内容进行智能总结</div>
+          </div>
+
+          <div class="linuxdo-settings-field">
+            <label for="geminiApiKey" class="linuxdo-settings-label">Gemini API Key</label>
+            <input type="password" id="geminiApiKey" class="linuxdo-settings-input" value="${getConfig('GEMINI_API_KEY')}" placeholder="请输入您的 Gemini API Key">
+          </div>
+
+          <div class="linuxdo-settings-field">
+            <label for="geminiApiBaseUrl" class="linuxdo-settings-label">API地址</label>
+            <input type="text" id="geminiApiBaseUrl" class="linuxdo-settings-input" value="${getConfig('GEMINI_API_BASE_URL')}" placeholder="https://generativelanguage.googleapis.com">
+            <div class="linuxdo-settings-description">设置Gemini API的基础地址，可用于配置代理服务器，最后不要加 / </div>
+          </div>
+
+          <div class="linuxdo-settings-field">
+            <label for="geminiModel" class="linuxdo-settings-label">AI 模型</label>
+            <div class="linuxdo-model-input-wrapper ${isCustomModel ? 'custom-input' : ''}">
+              <select id="geminiModelSelect" class="linuxdo-settings-select">
+                ${PREDEFINED_MODELS.map(model =>
+      `<option value="${model}" ${model === currentModel ? 'selected' : ''}>${model}</option>`
+    ).join('')}
+              </select>
+              <input type="text" id="geminiModelInput" class="linuxdo-settings-input" value="${isCustomModel ? currentModel : ''}" placeholder="输入自定义模型名称">
+              <button type="button" class="linuxdo-model-toggle">${isCustomModel ? '预设' : '自定义'}</button>
+            </div>
+            <div class="linuxdo-settings-description">选择要使用的 Gemini 模型，或输入自定义模型名称</div>
+          </div>
+
+          <div class="linuxdo-settings-field">
+            <label for="localSummaryMaxChars" class="linuxdo-settings-label">本地总结最大字符数</label>
+            <input type="number" id="localSummaryMaxChars" class="linuxdo-settings-input" value="${getConfig('LOCAL_SUMMARY_MAX_CHARS')}" placeholder="140" min="1" max="10000">
+            <div class="linuxdo-settings-description">设置本地内容总结的最大字符数，范围：1-10000</div>
+          </div>
+
+          <div class="linuxdo-settings-field">
+            <label for="customPrompt" class="linuxdo-settings-label">自定义总结 Prompt</label>
+            <textarea id="customPrompt" class="linuxdo-settings-textarea" placeholder="输入自定义的总结提示词">${getConfig('CUSTOM_SUMMARY_PROMPT')}</textarea>
+            <div class="linuxdo-settings-description">可以使用 {content} 作为占位符，代表帖子正文内容</div>
+          </div>
+
+          <div class="linuxdo-settings-buttons">
+            <button type="button" class="linuxdo-settings-button" id="cancelSettings">取消</button>
+            <button type="button" class="linuxdo-settings-button primary" id="saveSettings">保存</button>
+          </div>
+        </form>
+      </div>
+    `;
+
+    return dialog;
+  }
+
+  /**
+   * @description 为设置界面的所有可交互元素绑定事件监听器。
+   * @param {HTMLDialogElement} dialog - 设置界面的 dialog 元素。
+   */
+  function bindSettingsEvents(dialog) {
+    const closeBtn = dialog.querySelector('.linuxdo-settings-close');
+    const cancelBtn = dialog.querySelector('#cancelSettings');
+    const saveBtn = dialog.querySelector('#saveSettings');
+    const modelToggle = dialog.querySelector('.linuxdo-model-toggle');
+    const modelWrapper = dialog.querySelector('.linuxdo-model-input-wrapper');
+
+    const closeDialog = () => {
+      if (typeof dialog.close === 'function') {
+        dialog.setAttribute('closing', '');
+        setTimeout(() => {
+          dialog.close();
+          dialog.remove();
+        }, 200);
+      } else {
+        dialog.remove();
+        const backdrop = document.querySelector('.dialog-backdrop-fallback');
+        if (backdrop) backdrop.remove();
+      }
+    };
+
+    closeBtn.addEventListener('click', closeDialog);
+    cancelBtn.addEventListener('click', closeDialog);
+
+    dialog.addEventListener('click', (e) => {
+      if (e.target === dialog) {
+        closeDialog();
+      }
+    });
+
+    dialog.addEventListener('cancel', (e) => {
+      e.preventDefault();
+      closeDialog();
+    });
+
+    modelToggle.addEventListener('click', () => {
+      const isCustom = modelWrapper.classList.toggle('custom-input');
+      modelToggle.textContent = isCustom ? '预设' : '自定义';
+    });
+
+    saveBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+
+      const useGeminiApi = dialog.querySelector('#useGeminiApi').checked;
+      const apiKey = dialog.querySelector('#geminiApiKey').value.trim();
+      const apiBaseUrl = dialog.querySelector('#geminiApiBaseUrl').value.trim();
+      const localSummaryMaxChars = parseInt(dialog.querySelector('#localSummaryMaxChars').value.trim()) || DEFAULT_CONFIG.LOCAL_SUMMARY_MAX_CHARS;
+      const customPrompt = dialog.querySelector('#customPrompt').value.trim();
+
+      let modelValue;
+      if (modelWrapper.classList.contains('custom-input')) {
+        modelValue = dialog.querySelector('#geminiModelInput').value.trim();
+      } else {
+        modelValue = dialog.querySelector('#geminiModelSelect').value;
+      }
+
+      setConfig('USE_GEMINI_API_FOR_SUMMARY', useGeminiApi);
+      setConfig('GEMINI_API_KEY', apiKey);
+      setConfig('GEMINI_API_BASE_URL', apiBaseUrl || DEFAULT_CONFIG.GEMINI_API_BASE_URL);
+      setConfig('GEMINI_MODEL', modelValue || DEFAULT_CONFIG.GEMINI_MODEL);
+      setConfig('LOCAL_SUMMARY_MAX_CHARS', localSummaryMaxChars);
+      setConfig('CUSTOM_SUMMARY_PROMPT', customPrompt || DEFAULT_CONFIG.CUSTOM_SUMMARY_PROMPT);
+
+      const originalText = saveBtn.textContent;
+      saveBtn.textContent = '已保存 ✓';
+      saveBtn.disabled = true;
+
+      setTimeout(() => {
+        closeDialog();
+      }, 1200);
+    });
+
+    if (typeof dialog.showModal !== 'function') {
+      const backdrop = document.querySelector('.dialog-backdrop-fallback');
+      if (backdrop) {
+        backdrop.addEventListener('click', closeDialog);
+      }
+    }
+  }
+
+  /**
+   * @description 显示设置界面模态框。
+   */
+  function showSettingsModal() {
+    if (window !== window.top) {
+      console.log('在 iframe 中，跳过显示设置界面');
+      return;
+    }
+
+    const existingDialog = document.querySelector('.linuxdo-settings-dialog');
+    if (existingDialog) {
+      existingDialog.remove();
+    }
+
+    const dialog = createSettingsModal();
+    document.body.appendChild(dialog);
+
+    bindSettingsEvents(dialog);
+
+    if (typeof dialog.showModal === 'function') {
+      dialog.showModal();
+    } else {
+      dialog.style.display = 'block';
+      dialog.style.position = 'fixed';
+      dialog.style.top = '50%';
+      dialog.style.left = '50%';
+      dialog.style.transform = 'translate(-50%, -50%)';
+      dialog.style.zIndex = '10000';
+
+      const backdrop = document.createElement('div');
+      backdrop.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.6);
+        z-index: 9999;
+      `;
+      backdrop.className = 'dialog-backdrop-fallback';
+      document.body.appendChild(backdrop);
+
+      console.warn('浏览器不支持 dialog 元素，使用降级方案');
+    }
+  }
+  // #endregion
+
+  // #region 脚本初始化与执行
+  // ==========================================================
+  // 脚本初始化与执行
+  // ==========================================================
+
+  /**
+   * @description 脚本的主要初始化函数。
+   * 负责查找页面上的关键元素，并在找到后调用函数添加复制按钮。
+   */
   function initializeScript() {
-    // 只在主窗口中运行脚本功能，避免在 iframe 中重复执行
     if (window !== window.top) {
       console.log("在 iframe 中，跳过脚本初始化");
       return;
@@ -1208,37 +1210,24 @@
 
     console.log("油猴脚本已尝试初始化。");
 
-    // 找到文章标题元素
     const titleLinkElement = document.querySelector('h1[data-topic-id] a.fancy-title');
-    // 找到文章内容的主容器
     const articleRootElement = document.querySelector('.cooked');
-    // 找到用户数据、分类和标签的必要元素，确保它们都已加载
     const userDataContainer = document.querySelector('.topic-meta-data');
     const categoryBadge = document.querySelector('.topic-category .badge-category__wrapper');
     const tagsElement = document.querySelector('.list-tags');
 
-    // 只有当所有关键元素都存在时才进行操作
     if (titleLinkElement && articleRootElement && userDataContainer && categoryBadge) {
-      // 确保标题的父元素 (h1) 设置为 flex 布局，以便按钮能正确对齐
       if (titleLinkElement.parentNode && titleLinkElement.parentNode.tagName === 'H1') {
         const parentH1 = titleLinkElement.parentNode;
         if (!parentH1.style.display || !parentH1.style.display.includes('flex')) {
           parentH1.style.display = 'flex';
           parentH1.style.alignItems = 'center';
-          parentH1.style.gap = '8px'; // 添加间距
+          parentH1.style.gap = '8px';
           console.log('已调整 H1 父元素样式为 flex。');
         }
       }
 
       addCopyButtonToArticleTitle(titleLinkElement, articleRootElement);
-
-      // 调试用：立即获取文章数据并打印
-      // getArticleData(titleLinkElement, articleRootElement).then(data => {
-      //   console.log('首次获取到的文章数据:', data);
-      // }).catch(error => {
-      //   console.error('首次获取文章数据失败:', error);
-      // });
-
     } else {
       console.log('部分所需元素未找到，等待DOM更新:', {
         title: !!titleLinkElement,
@@ -1250,20 +1239,22 @@
     }
   }
 
-  // 只在主窗口中初始化脚本功能
+  // 脚本执行入口
   if (window === window.top) {
-    // 使用 MutationObserver 监听 DOM 变化，这对于动态加载内容的 SPA 非常重要
+    // 注入样式
+    addStyle(copyBtnStyle);
+
+    // 注册油猴菜单命令
+    GM_registerMenuCommand('设置', showSettingsModal);
+
+    // 使用 MutationObserver 监听 DOM 变化，以适应动态加载内容的单页应用 (SPA)
     const observer = new MutationObserver((mutationsList, observerInstance) => {
-      // 每次 DOM 变化时都尝试运行初始化函数
-      // initializeScript 内部会判断按钮是否已存在，防止重复添加
       initializeScript();
     });
 
-    // 开始观察整个文档主体，包括子元素的添加/移除和子树的更改
     observer.observe(document.body, { childList: true, subtree: true });
 
-    // 初始加载时也尝试运行一次，以防页面内容在脚本加载时已经就绪
-    // @run-at document-idle 已经处理了大部分情况，这里是额外的保障
+    // 初始加载时也尝试运行一次
     if (document.readyState === 'loading') {
       window.addEventListener('DOMContentLoaded', initializeScript);
     } else {
@@ -1272,7 +1263,6 @@
   } else {
     console.log("在 iframe 中，跳过脚本功能初始化");
   }
+  // #endregion
 
 })();
-
-
