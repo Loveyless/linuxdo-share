@@ -799,6 +799,117 @@
       handleCopyError({ element, error });
     });
   }
+  /**
+   * @description 节流函数
+   * @param {Function} func - 要节流的函数
+   * @param {number} delay - 节流的延迟时间(毫秒)
+   * @returns {Function} 节流后的函数
+   */
+  function throttle(func, delay) {
+    let timer;
+    function throttled(...param) {
+      if (timer) return;
+      timer = setTimeout(() => {
+        func.apply(this, param);
+        clearTimeout(timer);
+        timer = null;
+      }, delay);
+    }
+    return throttled;
+  }
+  /**
+   * 创建一个节流函数，在 wait 秒内最多执行 func 一次。
+   * 该函数提供一个 options 对象来决定是否应禁用前缘或后缘的调用。
+   *
+   * @param {Function} func 要节流的函数。
+   * @param {number} wait 等待的毫秒数。
+   * @param {object} [options={}] 选项对象。
+   * @param {boolean} [options.leading=true] 指定在节流开始前（前缘）调用。
+   * @param {boolean} [options.trailing=true] 指定在节流结束后（后缘）调用。
+   * @returns {Function} 返回新的节流函数。
+   */
+  function throttleFormGemini(func, wait, options = {}) {
+    let timeout = null;
+    let lastArgs = null;
+    let lastThis = null;
+    let result;
+    let previous = 0; // 上次执行的时间戳
+
+    // 默认开启 leading 和 trailing，trailing 默认开启以保持您之前版本的功能性
+    const { leading = true, trailing = true } = options;
+
+    // 如果 wait 小于等于 0，则无论如何都立即执行
+    if (wait <= 0) {
+      return (...args) => func.apply(this, args);
+    }
+
+    // 定时器触发时执行的函数，用于处理 trailing 调用
+    function later() {
+      // 如果 leading 为 false，则重置 previous，允许在静默期后立即触发下一次 leading
+      // 否则，将 previous 设为当前时间，作为新的节流周期的开始
+      previous = leading === false ? 0 : Date.now();
+      timeout = null;
+
+      // 如果在节流期间有新的调用，则执行最后一次调用
+      if (lastArgs) {
+        result = func.apply(lastThis, lastArgs);
+        // 清理，防止内存泄漏
+        if (!timeout) {
+          lastThis = lastArgs = null;
+        }
+      }
+    }
+
+    // 返回的节流函数
+    function throttled(...args) {
+      const now = Date.now();
+
+      // 如果是第一次调用，且禁用了 leading，则记录当前时间戳作为节流周期的开始
+      if (!previous && leading === false) {
+        previous = now;
+      }
+
+      // 计算距离下次可执行的时间
+      const remaining = wait - (now - previous);
+      lastArgs = args;
+      // eslint-disable-next-line @typescript-eslint/no-this-alias
+      lastThis = this;
+
+      // ---- 核心判断逻辑 ----
+      // 1. 时间已到 (remaining <= 0) 或 2. 系统时间被向后调整 (remaining > wait)
+      if (remaining <= 0 || remaining > wait) {
+        // 清除可能存在的 trailing 定时器，因为我们要立即执行
+        if (timeout) {
+          clearTimeout(timeout);
+          timeout = null;
+        }
+        // 更新时间戳，开始新的节流周期
+        previous = now;
+        // 立即执行（leading call）
+        result = func.apply(lastThis, lastArgs);
+        if (!timeout) {
+          lastThis = lastArgs = null;
+        }
+      } else if (!timeout && trailing !== false) {
+        // 如果时间未到，且没有设置定时器，并且需要 trailing 调用
+        // 则设置一个定时器，在剩余时间后执行 later 函数
+        timeout = setTimeout(later, remaining);
+      }
+
+      // 返回上一次执行的结果
+      return result;
+    }
+
+    // 添加取消功能
+    throttled.cancel = () => {
+      clearTimeout(timeout);
+      previous = 0;
+      timeout = lastThis = lastArgs = null;
+    };
+
+    return throttled;
+  }
+
   // #endregion
 
   // #region 核心数据提取
@@ -1241,6 +1352,10 @@
 
   // 脚本执行入口
   if (window === window.top) {
+
+    // 添加复制按钮函数增加节流
+    let initializeScriptThrottleFormGemini = throttleFormGemini(initializeScript, 300);
+
     // 注入样式
     addStyle(copyBtnStyle);
 
@@ -1249,16 +1364,16 @@
 
     // 使用 MutationObserver 监听 DOM 变化，以适应动态加载内容的单页应用 (SPA)
     const observer = new MutationObserver((mutationsList, observerInstance) => {
-      initializeScript();
+      initializeScriptThrottleFormGemini();
     });
 
     observer.observe(document.body, { childList: true, subtree: true });
 
     // 初始加载时也尝试运行一次
     if (document.readyState === 'loading') {
-      window.addEventListener('DOMContentLoaded', initializeScript);
+      window.addEventListener('DOMContentLoaded', initializeScriptThrottleFormGemini);
     } else {
-      initializeScript();
+      initializeScriptThrottleFormGemini();
     }
   } else {
     console.log("在 iframe 中，跳过脚本功能初始化");
