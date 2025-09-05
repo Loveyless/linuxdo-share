@@ -25,11 +25,13 @@
    * @description 默认配置项，当油猴存储中没有对应值时使用。
    */
   const DEFAULT_CONFIG = {
-    // 是否启用 Gemini API 进行内容总结
+    // 是否启用 AI 进行内容总结
     USE_AI_FOR_SUMMARY: false,
+    // AI 模式 gemini/openaiCompatible
+    AI_MODE: 'gemini',
     // AI Key，如果 USE_AI_FOR_SUMMARY 为 true，则需要填写此项 获取:
     API_KEY: '',
-    // Gemini API 基础地址
+    // AI 基础地址
     API_BASE_URL: 'https://generativelanguage.googleapis.com',
     // Gemini 模型名称
     MODEL_NAME: 'gemini-2.5-flash-lite',
@@ -649,9 +651,9 @@
   // ==========================================================
 
   /**
-   * @description 调用 Gemini API 以获取内容总结。
+   * @description 调用 AI 以获取内容总结。
    * @param {string} prompt - 发送给 API 的完整提示词。
-   * @param {string} apiKey -用户的 Gemini API Key。
+   * @param {string} apiKey -用户的 AI Key。
    * @param {string} [model='gemini-2.5-flash-lite'] - 要使用的 Gemini 模型名称。
    * @returns {Promise<string>} 返回 API 生成的文本内容的 Promise。
    */
@@ -686,12 +688,12 @@
             if (data.candidates && data.candidates.length > 0) {
               resolve(data.candidates[0].content.parts[0].text);
             } else if (data.error) {
-              reject(new Error(`Gemini API Error: ${data.error.message}`));
+              reject(new Error(`AI Error: ${data.error.message}`));
             } else {
-              reject(new Error('Gemini API returned an unexpected response.'));
+              reject(new Error('AI returned an unexpected response.'));
             }
           } catch (e) {
-            reject(new Error('Failed to parse Gemini API response: ' + e.message + '\nResponse: ' + response.responseText));
+            reject(new Error('Failed to parse AI response: ' + e.message + '\nResponse: ' + response.responseText));
           }
         },
         onerror: function (error) {
@@ -922,7 +924,7 @@
       fullTextContent = fullTextContent.replace(/\s*\n\s*/g, '\n').replace(/\n{2,}/g, '\n\n').trim();
 
       if (CONFIG.USE_AI_FOR_SUMMARY && CONFIG.API_KEY) {
-        console.log('尝试使用 Gemini API 总结内容...');
+        console.log('尝试使用 AI 总结内容...');
         const contentToSummarize = fullTextContent.substring(0, 4000);
         const customPrompt = CONFIG.CUSTOM_SUMMARY_PROMPT || DEFAULT_CONFIG.CUSTOM_SUMMARY_PROMPT;
         const prompt = customPrompt
@@ -931,16 +933,16 @@
 
         try {
           articleData.summary = `[AI总结]：` + await callGeminiAPI(prompt, CONFIG.API_KEY, CONFIG.MODEL_NAME);
-          console.log('Gemini API 总结:', articleData.summary);
+          console.log('AI 总结:', articleData.summary);
           articleData.summary = articleData.summary.replace(/^(.)\s*(\S+)/, '$1$2').trim();
         } catch (error) {
-          console.error('Gemini API 总结失败:', error);
+          console.error('AI 总结失败:', error);
           articleData.summary = fullTextContent.substring(0, CONFIG.LOCAL_SUMMARY_MAX_CHARS) + (fullTextContent.length > CONFIG.LOCAL_SUMMARY_MAX_CHARS ? '...' : '');
         }
       } else {
         articleData.summary = fullTextContent.substring(0, CONFIG.LOCAL_SUMMARY_MAX_CHARS) + (fullTextContent.length > CONFIG.LOCAL_SUMMARY_MAX_CHARS ? '...' : '');
         if (!CONFIG.API_KEY && CONFIG.USE_AI_FOR_SUMMARY) {
-          console.warn('未提供 Gemini API Key 或未启用 API 总结，将使用本地简单截取。');
+          console.warn('未提供 AI Key 或未启用 API 总结，将使用本地简单截取。');
         }
       }
     }
@@ -1054,6 +1056,14 @@
           </div>
 
           <div class="linuxdo-settings-field">
+            <label for="aiMode" class="linuxdo-settings-label">AI 模式</label>
+            <select id="aiMode" class="linuxdo-settings-select linuxdo-settings-input">
+              <option value="gemini" ${getConfig('AI_MODE') === 'gemini' ? 'selected' : ''}>Gemini</option>
+              <option value="openaiCompatible" ${getConfig('AI_MODE') === 'openaiCompatible' ? 'selected' : ''}>OpenAI Compatible</option>
+            </select>
+          </div>
+
+          <div class="linuxdo-settings-field">
             <label for="geminiApiKey" class="linuxdo-settings-label">API Key</label>
             <input type="password" id="geminiApiKey" class="linuxdo-settings-input" value="${getConfig('API_KEY')}" placeholder="请输入您的 API Key">
           </div>
@@ -1122,12 +1132,6 @@
     closeBtn.addEventListener('click', closeDialog);
     cancelBtn.addEventListener('click', closeDialog);
 
-    dialog.addEventListener('click', (e) => {
-      if (e.target === dialog) {
-        closeDialog();
-      }
-    });
-
     dialog.addEventListener('cancel', (e) => {
       e.preventDefault();
       closeDialog();
@@ -1137,19 +1141,15 @@
       e.preventDefault();
 
       const useGeminiApi = dialog.querySelector('#useGeminiApi').checked;
+      const aiMode = dialog.querySelector('#aiMode').value;
       const apiKey = dialog.querySelector('#geminiApiKey').value.trim();
       const apiBaseUrl = dialog.querySelector('#geminiApiBaseUrl').value.trim();
       const localSummaryMaxChars = parseInt(dialog.querySelector('#localSummaryMaxChars').value.trim()) || DEFAULT_CONFIG.LOCAL_SUMMARY_MAX_CHARS;
       const customPrompt = dialog.querySelector('#customPrompt').value.trim();
-
-      let modelValue;
-      if (modelWrapper.classList.contains('custom-input')) {
-        modelValue = dialog.querySelector('#geminiModelInput').value.trim();
-      } else {
-        modelValue = dialog.querySelector('#geminiModelSelect').value;
-      }
+      const modelValue = dialog.querySelector('#geminiModelInput').value.trim();
 
       setConfig('USE_AI_FOR_SUMMARY', useGeminiApi);
+      setConfig('AI_MODE', aiMode);
       setConfig('API_KEY', apiKey);
       setConfig('API_BASE_URL', apiBaseUrl || DEFAULT_CONFIG.API_BASE_URL);
       setConfig('MODEL_NAME', modelValue || DEFAULT_CONFIG.MODEL_NAME);
@@ -1162,15 +1162,8 @@
 
       setTimeout(() => {
         closeDialog();
-      }, 1200);
+      }, 300);
     });
-
-    if (typeof dialog.showModal !== 'function') {
-      const backdrop = document.querySelector('.dialog-backdrop-fallback');
-      if (backdrop) {
-        backdrop.addEventListener('click', closeDialog);
-      }
-    }
   }
 
   /**
