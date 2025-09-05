@@ -1,0 +1,58 @@
+<div class="linuxdo-settings-content">
+  <div class="linuxdo-settings-header">
+    <h2 class="linuxdo-settings-title">LinuxDo 分享助手设置</h2>
+    <button class="linuxdo-settings-close" type="button">&times;</button>
+  </div>
+  <form class="linuxdo-settings-form" method="dialog">
+    <div class="linuxdo-settings-field">
+      <div class="linuxdo-settings-checkbox-wrapper">
+        <input type="checkbox" id="useGeminiApi" class="linuxdo-settings-checkbox" ${getConfig('USE_AI_FOR_SUMMARY')
+          ? 'checked' : '' }>
+        <label for="useGeminiApi" class="linuxdo-settings-label" style="color:#7d0000">启用 AI 自动总结</label>
+      </div>
+      <div class="linuxdo-settings-description">开启后将使用 AI 对文章内容进行智能总结</div>
+    </div>
+
+    <div class="linuxdo-settings-field">
+      <label for="geminiApiKey" class="linuxdo-settings-label">API Key</label>
+      <input type="password" id="geminiApiKey" class="linuxdo-settings-input" value="${getConfig('API_KEY')}"
+        placeholder="请输入您的 API Key">
+    </div>
+
+    <div class="linuxdo-settings-field">
+      <label for="geminiApiBaseUrl" class="linuxdo-settings-label">API地址</label>
+      <input type="text" id="geminiApiBaseUrl" class="linuxdo-settings-input" value="${getConfig('API_BASE_URL')}"
+        placeholder="https://generativelanguage.googleapis.com">
+      <div class="linuxdo-settings-description">官方key填 https://generativelanguage.googleapis.com</div>
+      <div class="linuxdo-settings-description">gpt-load填 http://ip:port/proxy/customPath</div>
+      <div class="linuxdo-settings-description">获取Gemini官方key<a href="https://aistudio.google.com/apikey"
+          target="_blank">点击获取</a></div>
+    </div>
+
+    <div class="linuxdo-settings-field">
+      <label for="geminiModel" class="linuxdo-settings-label">AI 模型</label>
+      <input type="text" id="geminiModelInput" class="linuxdo-settings-input" value="${getConfig('MODEL_NAME')}"
+        placeholder="输入模型名称">
+    </div>
+
+    <div class="linuxdo-settings-field">
+      <label for="localSummaryMaxChars" class="linuxdo-settings-label">总结后的最大字符数maxChars</label>
+      <input type="number" id="localSummaryMaxChars" class="linuxdo-settings-input"
+        value="${getConfig('LOCAL_SUMMARY_MAX_CHARS')}" placeholder="140" min="1" max="10000" />
+      <div class="linuxdo-settings-description">设置总结后粘贴板的最大字符数，范围：1-10000</div>
+    </div>
+
+    <div class="linuxdo-settings-field">
+      <label for="customPrompt" class="linuxdo-settings-label">自定义总结 Prompt</label>
+      <textarea id="customPrompt" class="linuxdo-settings-textarea"
+        placeholder="输入自定义的总结提示词">${getConfig('CUSTOM_SUMMARY_PROMPT')}</textarea>
+      <div class="linuxdo-settings-description">可以使用 {maxChars} 总结后粘贴板的最大字符数(未启用AI总结时则为正文截断字符数)</div>
+      <div class="linuxdo-settings-description">可以使用 {content} 作为占位符，代表帖子正文内容</div>
+    </div>
+
+    <div class="linuxdo-settings-buttons">
+      <button type="button" class="linuxdo-settings-button" id="cancelSettings">取消</button>
+      <button type="button" class="linuxdo-settings-button primary" id="saveSettings">保存</button>
+    </div>
+  </form>
+</div>

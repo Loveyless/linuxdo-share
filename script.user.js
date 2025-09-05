@@ -26,14 +26,14 @@
    */
   const DEFAULT_CONFIG = {
     // 是否启用 Gemini API 进行内容总结
-    USE_GEMINI_API_FOR_SUMMARY: false,
-    // Gemini API Key，如果 USE_GEMINI_API_FOR_SUMMARY 为 true，则需要填写此项 获取:https://aistudio.google.com/apikey
-    GEMINI_API_KEY: '',
+    USE_AI_FOR_SUMMARY: false,
+    // AI Key，如果 USE_AI_FOR_SUMMARY 为 true，则需要填写此项 获取:
+    API_KEY: '',
     // Gemini API 基础地址
-    GEMINI_API_BASE_URL: 'https://generativelanguage.googleapis.com',
+    API_BASE_URL: 'https://generativelanguage.googleapis.com',
     // Gemini 模型名称
-    GEMINI_MODEL: 'gemini-2.5-flash-lite',
-    // 本地内容总结的最大字符数
+    MODEL_NAME: 'gemini-2.5-flash-lite',
+    // 总结后的最大字符数
     LOCAL_SUMMARY_MAX_CHARS: 90,
     // 自定义总结 Prompt
     CUSTOM_SUMMARY_PROMPT: `你是一个信息获取专家，可以精准的总结文章的精华内容和重点，请对以下文章内容进行归纳总结，回复不要有对我的问候语，或者《你好这是我的总结》等类似废话，直接返回你的总结，长度不超过{maxChars}个字符（或尽可能短，保持中文语义完整）： {content}`,
@@ -47,14 +47,6 @@
     ].join('\n')
   };
 
-  /**
-   * @description 预定义的 Gemini 模型选项，用于设置界面的下拉选择。
-   */
-  const PREDEFINED_MODELS = [
-    'gemini-2.0-flash-lite',
-    'gemini-2.5-pro',
-    'gemini-2.5-flash'
-  ];
   // #endregion
 
   // #region 配置管理
@@ -461,7 +453,6 @@
             width: 100%;
         }
         input[type].linuxdo-settings-input,
-        .linuxdo-settings-select,
         .linuxdo-settings-textarea {
             padding: 12px 16px;
             border: 2px solid #e5e7eb;
@@ -476,7 +467,6 @@
         }
 
         .linuxdo-settings-input:focus,
-        .linuxdo-settings-select:focus,
         .linuxdo-settings-textarea:focus {
             outline: none;
             border-color: #667eea;
@@ -485,7 +475,6 @@
         }
 
         html[style*="color-scheme: dark"] .linuxdo-settings-input,
-        html[style*="color-scheme: dark"] .linuxdo-settings-select,
         html[style*="color-scheme: dark"] .linuxdo-settings-textarea {
             background: #374151;
             border-color: #4b5563;
@@ -493,7 +482,6 @@
         }
 
         html[style*="color-scheme: dark"] .linuxdo-settings-input:focus,
-        html[style*="color-scheme: dark"] .linuxdo-settings-select:focus,
         html[style*="color-scheme: dark"] .linuxdo-settings-textarea:focus {
             border-color: #8bb9fe;
             box-shadow: 0 0 0 3px rgba(139, 185, 254, 0.1);
@@ -630,59 +618,14 @@
             align-items: stretch;
         }
 
-        .linuxdo-model-input-wrapper .linuxdo-settings-select {
-            flex: 1;
-        }
 
         .linuxdo-model-input-wrapper .linuxdo-settings-input {
             flex: 1;
             display: none;
         }
 
-        .linuxdo-model-input-wrapper.custom-input .linuxdo-settings-select {
-            display: none;
-        }
-
         .linuxdo-model-input-wrapper.custom-input .linuxdo-settings-input {
             display: block;
-        }
-
-        .linuxdo-model-toggle {
-            padding: 8px 16px;
-            font-size: 13px;
-            font-weight: 600;
-            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-            border: 2px solid #dee2e6;
-            border-radius: 8px;
-            cursor: pointer;
-            white-space: nowrap;
-            transition: all 0.2s ease;
-            color: #495057;
-            min-width: 80px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .linuxdo-model-toggle:hover {
-            background: linear-gradient(135deg, #e9ecef 0%, #dee2e6 100%);
-            transform: translateY(-1px);
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        }
-
-        .linuxdo-model-toggle:active {
-            transform: translateY(0);
-            box-shadow: 0 1px 4px rgba(0,0,0,0.1);
-        }
-
-        html[style*="color-scheme: dark"] .linuxdo-model-toggle {
-            background: linear-gradient(135deg, #4b5563 0%, #374151 100%);
-            border-color: #6b7280;
-            color: #f9fafb;
-        }
-
-        html[style*="color-scheme: dark"] .linuxdo-model-toggle:hover {
-            background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
         }
     `;
 
@@ -713,7 +656,7 @@
    * @returns {Promise<string>} 返回 API 生成的文本内容的 Promise。
    */
   async function callGeminiAPI(prompt, apiKey, model = 'gemini-2.5-flash-lite') {
-    const baseUrl = getConfig('GEMINI_API_BASE_URL') || DEFAULT_CONFIG.GEMINI_API_BASE_URL;
+    const baseUrl = getConfig('API_BASE_URL') || DEFAULT_CONFIG.API_BASE_URL;
     const url = `${baseUrl}/v1beta/models/${model}:generateContent?key=${apiKey}`;
     const headers = {
       'Content-Type': 'application/json'
@@ -978,7 +921,7 @@
       let fullTextContent = clonedArticleContent.textContent.trim();
       fullTextContent = fullTextContent.replace(/\s*\n\s*/g, '\n').replace(/\n{2,}/g, '\n\n').trim();
 
-      if (CONFIG.USE_GEMINI_API_FOR_SUMMARY && CONFIG.GEMINI_API_KEY) {
+      if (CONFIG.USE_AI_FOR_SUMMARY && CONFIG.API_KEY) {
         console.log('尝试使用 Gemini API 总结内容...');
         const contentToSummarize = fullTextContent.substring(0, 4000);
         const customPrompt = CONFIG.CUSTOM_SUMMARY_PROMPT || DEFAULT_CONFIG.CUSTOM_SUMMARY_PROMPT;
@@ -987,7 +930,7 @@
           .replace('{content}', contentToSummarize);
 
         try {
-          articleData.summary = `[AI总结]：` + await callGeminiAPI(prompt, CONFIG.GEMINI_API_KEY, CONFIG.GEMINI_MODEL);
+          articleData.summary = `[AI总结]：` + await callGeminiAPI(prompt, CONFIG.API_KEY, CONFIG.MODEL_NAME);
           console.log('Gemini API 总结:', articleData.summary);
           articleData.summary = articleData.summary.replace(/^(.)\s*(\S+)/, '$1$2').trim();
         } catch (error) {
@@ -996,7 +939,7 @@
         }
       } else {
         articleData.summary = fullTextContent.substring(0, CONFIG.LOCAL_SUMMARY_MAX_CHARS) + (fullTextContent.length > CONFIG.LOCAL_SUMMARY_MAX_CHARS ? '...' : '');
-        if (!CONFIG.GEMINI_API_KEY && CONFIG.USE_GEMINI_API_FOR_SUMMARY) {
+        if (!CONFIG.API_KEY && CONFIG.USE_AI_FOR_SUMMARY) {
           console.warn('未提供 Gemini API Key 或未启用 API 总结，将使用本地简单截取。');
         }
       }
@@ -1095,9 +1038,6 @@
     const dialog = document.createElement('dialog');
     dialog.className = 'linuxdo-settings-dialog';
 
-    const currentModel = getConfig('GEMINI_MODEL');
-    const isCustomModel = !PREDEFINED_MODELS.includes(currentModel);
-
     dialog.innerHTML = `
       <div class="linuxdo-settings-content">
         <div class="linuxdo-settings-header">
@@ -1107,46 +1047,40 @@
         <form class="linuxdo-settings-form" method="dialog">
           <div class="linuxdo-settings-field">
             <div class="linuxdo-settings-checkbox-wrapper">
-              <input type="checkbox" id="useGeminiApi" class="linuxdo-settings-checkbox" ${getConfig('USE_GEMINI_API_FOR_SUMMARY') ? 'checked' : ''}>
-              <label for="useGeminiApi" class="linuxdo-settings-label">启用 AI 自动总结</label>
+              <input type="checkbox" id="useGeminiApi" class="linuxdo-settings-checkbox" ${getConfig('USE_AI_FOR_SUMMARY') ? 'checked' : ''}>
+              <label for="useGeminiApi" class="linuxdo-settings-label" style="color:#7d0000">启用 AI 自动总结</label>
             </div>
-            <div class="linuxdo-settings-description">开启后将使用 Gemini API 对文章内容进行智能总结</div>
+            <div class="linuxdo-settings-description">开启后将使用 AI 对文章内容进行智能总结</div>
           </div>
 
           <div class="linuxdo-settings-field">
-            <label for="geminiApiKey" class="linuxdo-settings-label">Gemini API Key</label>
-            <input type="password" id="geminiApiKey" class="linuxdo-settings-input" value="${getConfig('GEMINI_API_KEY')}" placeholder="请输入您的 Gemini API Key">
+            <label for="geminiApiKey" class="linuxdo-settings-label">API Key</label>
+            <input type="password" id="geminiApiKey" class="linuxdo-settings-input" value="${getConfig('API_KEY')}" placeholder="请输入您的 API Key">
           </div>
 
           <div class="linuxdo-settings-field">
             <label for="geminiApiBaseUrl" class="linuxdo-settings-label">API地址</label>
-            <input type="text" id="geminiApiBaseUrl" class="linuxdo-settings-input" value="${getConfig('GEMINI_API_BASE_URL')}" placeholder="https://generativelanguage.googleapis.com">
-            <div class="linuxdo-settings-description">设置Gemini API的基础地址，可用于配置代理服务器，最后不要加 / </div>
+            <input type="text" id="geminiApiBaseUrl" class="linuxdo-settings-input" value="${getConfig('API_BASE_URL')}" placeholder="https://generativelanguage.googleapis.com">
+            <div class="linuxdo-settings-description">官方key填 https://generativelanguage.googleapis.com</div>
+            <div class="linuxdo-settings-description">gpt-load填 http://ip:port/proxy/customPath</div>
+            <div class="linuxdo-settings-description">获取Gemini官方key<a href="https://aistudio.google.com/apikey" target="_blank">点击获取</a></div>
           </div>
 
           <div class="linuxdo-settings-field">
             <label for="geminiModel" class="linuxdo-settings-label">AI 模型</label>
-            <div class="linuxdo-model-input-wrapper ${isCustomModel ? 'custom-input' : ''}">
-              <select id="geminiModelSelect" class="linuxdo-settings-select">
-                ${PREDEFINED_MODELS.map(model =>
-      `<option value="${model}" ${model === currentModel ? 'selected' : ''}>${model}</option>`
-    ).join('')}
-              </select>
-              <input type="text" id="geminiModelInput" class="linuxdo-settings-input" value="${isCustomModel ? currentModel : ''}" placeholder="输入自定义模型名称">
-              <button type="button" class="linuxdo-model-toggle">${isCustomModel ? '预设' : '自定义'}</button>
-            </div>
-            <div class="linuxdo-settings-description">选择要使用的 Gemini 模型，或输入自定义模型名称</div>
+            <input type="text" id="geminiModelInput" class="linuxdo-settings-input" value="${getConfig('MODEL_NAME')}" placeholder="输入模型名称">
           </div>
 
           <div class="linuxdo-settings-field">
-            <label for="localSummaryMaxChars" class="linuxdo-settings-label">本地总结最大字符数</label>
-            <input type="number" id="localSummaryMaxChars" class="linuxdo-settings-input" value="${getConfig('LOCAL_SUMMARY_MAX_CHARS')}" placeholder="140" min="1" max="10000">
-            <div class="linuxdo-settings-description">设置本地内容总结的最大字符数，范围：1-10000</div>
+            <label for="localSummaryMaxChars" class="linuxdo-settings-label">总结后的最大字符数maxChars</label>
+            <input type="number" id="localSummaryMaxChars" class="linuxdo-settings-input" value="${getConfig('LOCAL_SUMMARY_MAX_CHARS')}" placeholder="140" min="1" max="10000" />
+            <div class="linuxdo-settings-description">设置总结后粘贴板的最大字符数，范围：1-10000</div>
           </div>
 
           <div class="linuxdo-settings-field">
             <label for="customPrompt" class="linuxdo-settings-label">自定义总结 Prompt</label>
             <textarea id="customPrompt" class="linuxdo-settings-textarea" placeholder="输入自定义的总结提示词">${getConfig('CUSTOM_SUMMARY_PROMPT')}</textarea>
+            <div class="linuxdo-settings-description">{maxChars} 总结后粘贴板的最大字符数(未启用AI总结时则为正文截断字符数)</div>
             <div class="linuxdo-settings-description">可以使用 {content} 作为占位符，代表帖子正文内容</div>
           </div>
 
@@ -1169,7 +1103,6 @@
     const closeBtn = dialog.querySelector('.linuxdo-settings-close');
     const cancelBtn = dialog.querySelector('#cancelSettings');
     const saveBtn = dialog.querySelector('#saveSettings');
-    const modelToggle = dialog.querySelector('.linuxdo-model-toggle');
     const modelWrapper = dialog.querySelector('.linuxdo-model-input-wrapper');
 
     const closeDialog = () => {
@@ -1200,11 +1133,6 @@
       closeDialog();
     });
 
-    modelToggle.addEventListener('click', () => {
-      const isCustom = modelWrapper.classList.toggle('custom-input');
-      modelToggle.textContent = isCustom ? '预设' : '自定义';
-    });
-
     saveBtn.addEventListener('click', (e) => {
       e.preventDefault();
 
@@ -1221,10 +1149,10 @@
         modelValue = dialog.querySelector('#geminiModelSelect').value;
       }
 
-      setConfig('USE_GEMINI_API_FOR_SUMMARY', useGeminiApi);
-      setConfig('GEMINI_API_KEY', apiKey);
-      setConfig('GEMINI_API_BASE_URL', apiBaseUrl || DEFAULT_CONFIG.GEMINI_API_BASE_URL);
-      setConfig('GEMINI_MODEL', modelValue || DEFAULT_CONFIG.GEMINI_MODEL);
+      setConfig('USE_AI_FOR_SUMMARY', useGeminiApi);
+      setConfig('API_KEY', apiKey);
+      setConfig('API_BASE_URL', apiBaseUrl || DEFAULT_CONFIG.API_BASE_URL);
+      setConfig('MODEL_NAME', modelValue || DEFAULT_CONFIG.MODEL_NAME);
       setConfig('LOCAL_SUMMARY_MAX_CHARS', localSummaryMaxChars);
       setConfig('CUSTOM_SUMMARY_PROMPT', customPrompt || DEFAULT_CONFIG.CUSTOM_SUMMARY_PROMPT);
 
