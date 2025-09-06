@@ -38,11 +38,11 @@
     // 总结后的最大字符数
     LOCAL_SUMMARY_MAX_CHARS: 90,
     // 自定义总结 Prompt
-    CUSTOM_SUMMARY_PROMPT: `你是一个信息获取专家，可以精准的总结文章的精华内容和重点，请对以下文章内容进行归纳总结，回复不要有对我的问候语，或者《你好这是我的总结》等类似废话，直接返回你的总结，长度不超过{maxChars}个字符（或尽可能短，保持中文语义完整）： {content}`,
+    CUSTOM_SUMMARY_PROMPT: `你是一个信息获取专家，可以精准的总结文章的精华内容和重点，请对以下文章内容进行归纳总结，回复不要有对我的问候语，或者(你好这是我的总结)(总结)等类似废话，直接返回你的总结，长度不超过{maxChars}个字符（或尽可能短，保持中文语义完整）： {content}`,
     // 文章复制模板
     ARTICLE_COPY_TEMPLATE: [
       `{{title}}`,
-      `@{{username}} - {{category}} / {{tags}}`,
+      `@{{username}}-{{category}}/{{tags}}`,
       ``,
       `{{summary}}`,
       `{{link}}`,
@@ -695,7 +695,7 @@
               } else if (data.error) {
                 reject(new Error(`AI Error: ${data.error.message}`));
               } else {
-                reject(new Error('AI returned an unexpected response.'));
+                reject(new Error('AI returned an unexpected response.' + JSON.stringify(response)));
               }
             } catch (e) {
               reject(new Error('Failed to parse AI response: ' + e.message + '\nResponse: ' + response.responseText));
@@ -976,7 +976,7 @@
           .replace('{content}', contentToSummarize);
 
         try {
-          articleData.summary = `[AI总结]：` + await callAiAPI(prompt, CONFIG.API_KEY, CONFIG.MODEL_NAME);
+          articleData.summary = `[AI总结]:` + await callAiAPI(prompt, CONFIG.API_KEY, CONFIG.MODEL_NAME);
           console.log(CONFIG.AI_MODE, CONFIG.MODEL_NAME, '总结:', articleData.summary);
           articleData.summary = articleData.summary.replace(/^(.)\s*(\S+)/, '$1$2').trim();
         } catch (error) {
@@ -1286,7 +1286,7 @@
           parentH1.style.display = 'flex';
           parentH1.style.alignItems = 'center';
           parentH1.style.gap = '8px';
-          console.log('已调整 H1 父元素样式为 flex。');
+          // console.log('已调整 H1 父元素样式为 flex。');
         }
       }
 
@@ -1328,7 +1328,7 @@
       initializeScriptThrottleFormGemini();
     }
   } else {
-    console.log("在 iframe 中，跳过脚本功能初始化");
+    // console.log("在 iframe 中，跳过脚本功能初始化");
   }
   // #endregion
 
