@@ -16,8 +16,9 @@ https://linux.do/t/topic/482293
 ```
 <img width="369" height="236" alt="image" src="https://github.com/user-attachments/assets/a73351d5-86a8-4db1-9580-2bc0b4c11bb6" />
 
-## 可以接入Gemini来总结正文内容
-<img width="1085" height="907" alt="image" src="https://github.com/user-attachments/assets/6baf738c-3a14-405d-81a4-04aa2c882fb8" />
+## 可以接入Gemini/OpenAiCompatible来总结正文内容
+<img width="478" height="476" alt="image" src="https://github.com/user-attachments/assets/ee720ebc-55de-440c-9ac6-5bc59b396bbf" />
+<img width="500" height="457" alt="image" src="https://github.com/user-attachments/assets/6baf738c-3a14-405d-81a4-04aa2c882fb8" />
 
 
 ### SFC 应用中遇到的问题分析
