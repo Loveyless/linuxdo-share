@@ -454,7 +454,7 @@
         .linuxdo-settings-textarea {
             width: 100%;
         }
-        input[type].linuxdo-settings-input,
+        .linuxdo-settings-input,
         .linuxdo-settings-textarea {
             padding: 12px 16px;
             border: 2px solid #e5e7eb;
@@ -657,50 +657,94 @@
    * @param {string} [model='gemini-2.5-flash-lite'] - 要使用的 Gemini 模型名称。
    * @returns {Promise<string>} 返回 API 生成的文本内容的 Promise。
    */
-  async function callGeminiAPI(prompt, apiKey, model = 'gemini-2.5-flash-lite') {
-    const baseUrl = getConfig('API_BASE_URL') || DEFAULT_CONFIG.API_BASE_URL;
-    const url = `${baseUrl}/v1beta/models/${model}:generateContent?key=${apiKey}`;
-    const headers = {
-      'Content-Type': 'application/json'
-    };
-    const body = JSON.stringify({
-      contents: [{
-        parts: [{
-          text: prompt
-        }]
-      }],
-      generationConfig: {
-        temperature: 0.7, // 调整生成温度
-        topP: 0.9,
-        topK: 40
-      }
-    });
+  async function callAiAPI(prompt, apiKey, model = 'gemini-2.5-flash-lite') {
+    const aiMode = CONFIG.AI_MODE || DEFAULT_CONFIG.AI_MODE;
 
-    return new Promise((resolve, reject) => {
-      GM_xmlhttpRequest({
-        method: "POST",
-        url: url,
-        headers: headers,
-        data: body,
-        onload: function (response) {
-          try {
-            const data = JSON.parse(response.responseText);
-            if (data.candidates && data.candidates.length > 0) {
-              resolve(data.candidates[0].content.parts[0].text);
-            } else if (data.error) {
-              reject(new Error(`AI Error: ${data.error.message}`));
-            } else {
-              reject(new Error('AI returned an unexpected response.'));
-            }
-          } catch (e) {
-            reject(new Error('Failed to parse AI response: ' + e.message + '\nResponse: ' + response.responseText));
-          }
-        },
-        onerror: function (error) {
-          reject(new Error('GM_xmlhttpRequest failed: ' + error.statusText || 'Unknown error'));
+    const baseUrl = CONFIG.API_BASE_URL || DEFAULT_CONFIG.API_BASE_URL;
+
+    // gemini
+    if (aiMode === 'gemini') {
+      const url = `${baseUrl}/v1beta/models/${model}:generateContent?key=${apiKey}`;
+      const headers = {
+        'Content-Type': 'application/json'
+      };
+      const body = JSON.stringify({
+        contents: [{
+          parts: [{
+            text: prompt
+          }]
+        }],
+        generationConfig: {
+          temperature: 0.7, // 调整生成温度
+          topP: 0.9,
+          topK: 40
         }
       });
-    });
+
+      return new Promise((resolve, reject) => {
+        GM_xmlhttpRequest({
+          method: "POST",
+          url: url,
+          headers: headers,
+          data: body,
+          onload: function (response) {
+            try {
+              const data = JSON.parse(response.responseText);
+              if (data.candidates && data.candidates.length > 0) {
+                resolve(data.candidates[0].content.parts[0].text);
+              } else if (data.error) {
+                reject(new Error(`AI Error: ${data.error.message}`));
+              } else {
+                reject(new Error('AI returned an unexpected response.'));
+              }
+            } catch (e) {
+              reject(new Error('Failed to parse AI response: ' + e.message + '\nResponse: ' + response.responseText));
+            }
+          },
+          onerror: function (error) {
+            reject(new Error('GM_xmlhttpRequest failed: ' + error.statusText || 'Unknown error'));
+          }
+        });
+      });
+    } else if (aiMode === 'openaiCompatible') {
+      const url = baseUrl;
+      const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      };
+      const body = JSON.stringify({
+        model: model,
+        messages: [{
+          role: 'user',
+          content: prompt
+        }]
+      });
+      return new Promise((resolve, reject) => {
+        GM_xmlhttpRequest({
+          method: "POST",
+          url: url,
+          headers: headers,
+          data: body,
+          onload: function (response) {
+            try {
+              const data = JSON.parse(response.responseText);
+              if (data.choices && data.choices.length > 0) {
+                resolve(data.choices[0].message.content);
+              } else if (data.error) {
+                reject(new Error(`AI Error: ${data.error.message}`));
+              } else {
+                reject(new Error('AI returned an unexpected response.'));
+              }
+            } catch (e) {
+              reject(new Error('Failed to parse AI response: ' + e.message + '\nResponse: ' + response.responseText));
+            }
+          },
+          onerror: function (error) {
+            reject(new Error('GM_xmlhttpRequest failed: ' + error.statusText || 'Unknown error'));
+          }
+        });
+      });
+    }
   }
 
   /**
@@ -932,8 +976,8 @@
           .replace('{content}', contentToSummarize);
 
         try {
-          articleData.summary = `[AI总结]：` + await callGeminiAPI(prompt, CONFIG.API_KEY, CONFIG.MODEL_NAME);
-          console.log('AI 总结:', articleData.summary);
+          articleData.summary = `[AI总结]：` + await callAiAPI(prompt, CONFIG.API_KEY, CONFIG.MODEL_NAME);
+          console.log(CONFIG.AI_MODE, CONFIG.MODEL_NAME, '总结:', articleData.summary);
           articleData.summary = articleData.summary.replace(/^(.)\s*(\S+)/, '$1$2').trim();
         } catch (error) {
           console.error('AI 总结失败:', error);
@@ -963,7 +1007,7 @@
     // 可能导致判断不准确 重复添加copy按钮原因未知
     // if (titleElement.nextElementSibling && titleElement.nextElementSibling.classList.contains('article-copy-button')) {
     if (titleElement.parentNode.querySelectorAll('.article-copy-button').length > 0) {
-      console.log('复制按钮已存在，跳过添加。');
+      // console.log('复制按钮已存在，跳过添加。');
       return;
     }
 
@@ -1049,7 +1093,7 @@
         <form class="linuxdo-settings-form" method="dialog">
           <div class="linuxdo-settings-field">
             <div class="linuxdo-settings-checkbox-wrapper">
-              <input type="checkbox" id="useGeminiApi" class="linuxdo-settings-checkbox" ${getConfig('USE_AI_FOR_SUMMARY') ? 'checked' : ''}>
+              <input type="checkbox" id="useGeminiApi" class="linuxdo-settings-checkbox" ${CONFIG.USE_AI_FOR_SUMMARY ? 'checked' : ''}>
               <label for="useGeminiApi" class="linuxdo-settings-label" style="color:#7d0000">启用 AI 自动总结</label>
             </div>
             <div class="linuxdo-settings-description">开启后将使用 AI 对文章内容进行智能总结</div>
@@ -1058,38 +1102,39 @@
           <div class="linuxdo-settings-field">
             <label for="aiMode" class="linuxdo-settings-label">AI 模式</label>
             <select id="aiMode" class="linuxdo-settings-select linuxdo-settings-input">
-              <option value="gemini" ${getConfig('AI_MODE') === 'gemini' ? 'selected' : ''}>Gemini</option>
-              <option value="openaiCompatible" ${getConfig('AI_MODE') === 'openaiCompatible' ? 'selected' : ''}>OpenAI Compatible</option>
+              <option value="gemini" ${CONFIG.AI_MODE === 'gemini' ? 'selected' : ''}>Gemini</option>
+              <option value="openaiCompatible" ${CONFIG.AI_MODE === 'openaiCompatible' ? 'selected' : ''}>OpenAI Compatible</option>
             </select>
           </div>
 
           <div class="linuxdo-settings-field">
             <label for="geminiApiKey" class="linuxdo-settings-label">API Key</label>
-            <input type="password" id="geminiApiKey" class="linuxdo-settings-input" value="${getConfig('API_KEY')}" placeholder="请输入您的 API Key">
+            <input type="password" id="geminiApiKey" class="linuxdo-settings-input" value="${CONFIG.API_KEY}" placeholder="请输入您的 API Key">
           </div>
 
           <div class="linuxdo-settings-field">
             <label for="geminiApiBaseUrl" class="linuxdo-settings-label">API地址</label>
-            <input type="text" id="geminiApiBaseUrl" class="linuxdo-settings-input" value="${getConfig('API_BASE_URL')}" placeholder="https://generativelanguage.googleapis.com">
+            <input type="text" id="geminiApiBaseUrl" class="linuxdo-settings-input" value="${CONFIG.API_BASE_URL}" placeholder="https://generativelanguage.googleapis.com">
             <div class="linuxdo-settings-description">官方key填 https://generativelanguage.googleapis.com</div>
             <div class="linuxdo-settings-description">gpt-load填 http://ip:port/proxy/customPath</div>
             <div class="linuxdo-settings-description">获取Gemini官方key<a href="https://aistudio.google.com/apikey" target="_blank">点击获取</a></div>
+            <div class="linuxdo-settings-description">openaiCompatible模式下,地址为全量(一般为baseUrl + /v1/chat/completions)</div>
           </div>
 
           <div class="linuxdo-settings-field">
             <label for="geminiModel" class="linuxdo-settings-label">AI 模型</label>
-            <input type="text" id="geminiModelInput" class="linuxdo-settings-input" value="${getConfig('MODEL_NAME')}" placeholder="输入模型名称">
+            <input type="text" id="geminiModelInput" class="linuxdo-settings-input" value="${CONFIG.MODEL_NAME}" placeholder="输入模型名称">
           </div>
 
           <div class="linuxdo-settings-field">
             <label for="localSummaryMaxChars" class="linuxdo-settings-label">总结后的最大字符数maxChars</label>
-            <input type="number" id="localSummaryMaxChars" class="linuxdo-settings-input" value="${getConfig('LOCAL_SUMMARY_MAX_CHARS')}" placeholder="140" min="1" max="10000" />
+            <input type="number" id="localSummaryMaxChars" class="linuxdo-settings-input" value="${CONFIG.LOCAL_SUMMARY_MAX_CHARS}" placeholder="140" min="1" max="10000" />
             <div class="linuxdo-settings-description">设置总结后粘贴板的最大字符数，范围：1-10000</div>
           </div>
 
           <div class="linuxdo-settings-field">
             <label for="customPrompt" class="linuxdo-settings-label">自定义总结 Prompt</label>
-            <textarea id="customPrompt" class="linuxdo-settings-textarea" placeholder="输入自定义的总结提示词">${getConfig('CUSTOM_SUMMARY_PROMPT')}</textarea>
+            <textarea id="customPrompt" class="linuxdo-settings-textarea" placeholder="输入自定义的总结提示词">${CONFIG.CUSTOM_SUMMARY_PROMPT}</textarea>
             <div class="linuxdo-settings-description">{maxChars} 总结后粘贴板的最大字符数(未启用AI总结时则为正文截断字符数)</div>
             <div class="linuxdo-settings-description">可以使用 {content} 作为占位符，代表帖子正文内容</div>
           </div>
@@ -1226,7 +1271,7 @@
       return;
     }
 
-    console.log("油猴脚本已尝试初始化。");
+    // console.log("油猴脚本已尝试初始化。");
 
     const titleLinkElement = document.querySelector('h1[data-topic-id] a.fancy-title');
     const articleRootElement = document.querySelector('.cooked');
