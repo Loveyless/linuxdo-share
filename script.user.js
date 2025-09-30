@@ -519,8 +519,8 @@
         }
 
         .linuxdo-settings-checkbox {
-            width: 20px;
-            height: 20px;
+            width: 20px !important;
+            height: 20px !important;
             border: 2px solid #d1d5db;
             border-radius: 4px;
             background: white;
@@ -692,8 +692,8 @@
               const data = JSON.parse(response.responseText);
               if (data.candidates && data.candidates.length > 0) {
                 resolve(data.candidates[0].content.parts[0].text);
-              } else if (data.error) {
-                reject(new Error(`AI Error: ${data.error.message}`));
+              } else if (data.error || data.errors) {
+                reject(new Error(`AI Error: ${data.error} ${data.errors}`));
               } else {
                 reject(new Error('AI returned an unexpected response.' + JSON.stringify(response)));
               }
@@ -728,12 +728,13 @@
           onload: function (response) {
             try {
               const data = JSON.parse(response.responseText);
+              console.log('ai data', data);
               if (data.choices && data.choices.length > 0) {
                 resolve(data.choices[0].message.content);
-              } else if (data.error) {
-                reject(new Error(`AI Error: ${data.error.message}`));
+              } else if (data.error && data.errors) {
+                reject(new Error(`AI Error: ${data.error} ${data.errors}`));
               } else {
-                reject(new Error('AI returned an unexpected response.'));
+                reject(new Error('AI returned an unexpected response.', JSON.stringify(response)));
               }
             } catch (e) {
               reject(new Error('Failed to parse AI response: ' + e.message + '\nResponse: ' + response.responseText));
@@ -1094,7 +1095,7 @@
           <div class="linuxdo-settings-field">
             <div class="linuxdo-settings-checkbox-wrapper">
               <input type="checkbox" id="useGeminiApi" class="linuxdo-settings-checkbox" ${CONFIG.USE_AI_FOR_SUMMARY ? 'checked' : ''}>
-              <label for="useGeminiApi" class="linuxdo-settings-label" style="color:#7d0000">启用 AI 自动总结</label>
+              <label for="useGeminiApi" class="linuxdo-settings-label" style="color:#7d0000;font-size:16px">启用 AI 自动总结</label>
             </div>
             <div class="linuxdo-settings-description">开启后将使用 AI 对文章内容进行智能总结</div>
           </div>
