@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name          从linux do获取论坛文章数据与复制
 // @namespace     http://tampermonkey.net/
-// @version       0.15.1
+// @version       0.15.2
 // @description   从linux do论坛页面获取文章的板块、标题、链接、标签和内容总结，并在标题旁添加复制按钮。支持设置界面配置。
 // @author        @Loveyless https://github.com/Loveyless/linuxdo-share
 // @match         *://*.linux.do/*
@@ -1002,9 +1002,8 @@
   /**
    * @description 在文章标题旁边创建一个复制按钮并添加到页面中。
    * @param {HTMLElement} titleElement - 文章标题的 <a> 元素。
-   * @param {HTMLElement} articleRootElement - 文章内容的根元素。
    */
-  function addCopyButtonToArticleTitle(titleElement, articleRootElement) {
+  function addCopyButtonToArticleTitle(titleElement) {
     // 可能导致判断不准确 重复添加copy按钮原因未知
     // if (titleElement.nextElementSibling && titleElement.nextElementSibling.classList.contains('article-copy-button')) {
     if (titleElement.parentNode.querySelectorAll('.article-copy-button').length > 0) {
@@ -1055,7 +1054,10 @@
       copyButton.disabled = true;
 
       try {
-        const articleData = await getArticleData(titleElement, articleRootElement);
+        // 每次点击时重新获取当前页面的DOM元素，避免SPA页面切换后闭包持有旧引用
+        const currentTitleElement = document.querySelector('h1[data-topic-id] a.fancy-title');
+        const currentArticleRootElement = document.querySelector('.cooked');
+        const articleData = await getArticleData(currentTitleElement, currentArticleRootElement);
         console.log('获取到的文章数据:', articleData);
 
         let formattedText = CONFIG.ARTICLE_COPY_TEMPLATE.replace(/{{(\w+)}}/g, (match, key) => {
@@ -1291,7 +1293,7 @@
         }
       }
 
-      addCopyButtonToArticleTitle(titleLinkElement, articleRootElement);
+      addCopyButtonToArticleTitle(titleLinkElement);
     } else {
       console.log('部分所需元素未找到，等待DOM更新:', {
         title: !!titleLinkElement,
