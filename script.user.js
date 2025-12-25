@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name          从linux do获取论坛文章数据与复制
 // @namespace     http://tampermonkey.net/
-// @version       0.15.2
+// @version       0.15.3
 // @description   从linux do论坛页面获取文章的板块、标题、链接、标签和内容总结，并在标题旁添加复制按钮。支持设置界面配置。
 // @author        @Loveyless https://github.com/Loveyless/linuxdo-share
 // @match         *://*.linux.do/*
@@ -935,6 +935,40 @@
   }
 
   /**
+   * @description 从页面 DOM 中提取当前登录用户的用户名（用于分享链接参数 u）。
+   * @returns {string} 用户名（小写）；未获取到则返回空字符串。
+   */
+  function getSharerUsername() {
+    const userProfileLink = document.querySelector('span.full-name a[href^="/u/"]');
+    if (!userProfileLink) return '';
+
+    const href = userProfileLink.getAttribute('href') || '';
+    const match = href.match(/\/u\/([^/?#]+)/i);
+    if (!match) return '';
+
+    return match[1].trim().toLowerCase();
+  }
+
+  /**
+   * @description 将 u=<username> 拼接到链接中（兼容已有查询参数）。
+   * @param {string} link - 原始链接。
+   * @param {string} username - 用户名（建议已转小写）。
+   * @returns {string} 拼接后的链接。
+   */
+  function appendSharerParamToLink(link, username) {
+    if (!link || !username) return link || '';
+
+    try {
+      const url = new URL(link, window.location.origin);
+      url.searchParams.set('u', username);
+      return url.toString();
+    } catch (error) {
+      const separator = link.includes('?') ? '&' : '?';
+      return `${link}${separator}u=${encodeURIComponent(username)}`;
+    }
+  }
+
+  /**
    * @description 从页面 DOM 中提取并整合文章的完整数据。
    * @param {HTMLElement} titleElement - 文章标题的 <a> 元素。
    * @param {HTMLElement} articleRootElement - 文章内容的根元素 (通常是 .cooked)。
@@ -953,6 +987,7 @@
     if (titleElement) {
       articleData.title = titleElement.textContent.trim();
       articleData.link = titleElement.href || '';
+      articleData.link = appendSharerParamToLink(articleData.link, getSharerUsername());
     }
 
     // 获取内容并进行总结
