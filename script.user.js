@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name          从linux do获取论坛文章数据与复制
 // @namespace     http://tampermonkey.net/
-// @version       0.15.3
+// @version       0.15.4
 // @description   从linux do论坛页面获取文章的板块、标题、链接、标签和内容总结，并在标题旁添加复制按钮。支持设置界面配置。
 // @author        @Loveyless https://github.com/Loveyless/linuxdo-share
 // @match         *://*.linux.do/*
@@ -941,14 +941,17 @@
    * @returns {string} 用户名（小写）；未获取到则返回空字符串。
    */
   function getSharerUsername() {
-    const userProfileLink = document.querySelector('span.full-name a[href^="/u/"]');
-    if (!userProfileLink) return '';
+    const currentUserToggle = document.getElementById('toggle-current-user');
+    if (!currentUserToggle) return '';
 
-    const href = userProfileLink.getAttribute('href') || '';
-    const match = href.match(/\/u\/([^/?#]+)/i);
-    if (!match) return '';
+    const avatarImg = currentUserToggle.querySelector('img.avatar');
+    if (avatarImg) {
+      const src = avatarImg.getAttribute('src') || '';
+      const match = src.match(/\/user_avatar\/[^/]+\/([^/]+)\//i);
+      if (match) return match[1].trim().toLowerCase();
+    }
 
-    return match[1].trim().toLowerCase();
+    return '';
   }
 
   /**
