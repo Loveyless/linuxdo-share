@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name          从linux do获取论坛文章数据与复制
 // @namespace     http://tampermonkey.net/
-// @version       0.15.9
+// @version       0.15.10
 // @description   从linux do论坛页面获取文章的板块、标题、链接、标签和内容总结，并在标题旁添加复制按钮。支持设置界面配置。
 // @author        @Loveyless https://github.com/Loveyless/linuxdo-share
 // @match         *://*.linux.do/*
@@ -724,6 +724,26 @@
             margin: 0 !important;
             overflow: hidden;
             transition: box-shadow 0.15s ease, border-color 0.15s ease, transform 0.05s ease;
+        }
+
+        /* 禁用 Discourse 的 selected 高亮效果（两栏模式） */
+        html.linuxdo-two-column-layout tbody.topic-list-body > tr.topic-list-item.selected,
+        html.linuxdo-two-column-layout tbody.topic-list-body > tr.topic-list-item.selected > td {
+            background: var(--ld-list-card) !important;
+        }
+
+        html.linuxdo-two-column-layout tbody.topic-list-body > tr.topic-list-item.selected {
+            border-color: var(--ld-list-border) !important;
+            box-shadow: none !important;
+            outline: none !important;
+        }
+
+        html.linuxdo-two-column-layout tbody.topic-list-body > tr.topic-list-item.selected:hover {
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08), 0 0 0 3px var(--ld-list-ring);
+        }
+
+        html[style*="color-scheme: dark"].linuxdo-two-column-layout tbody.topic-list-body > tr.topic-list-item.selected:hover {
+            box-shadow: 0 18px 44px rgba(0, 0, 0, 0.35), 0 0 0 3px var(--ld-list-ring);
         }
 
         html.linuxdo-two-column-layout tbody.topic-list-body > tr.topic-list-item:hover {
