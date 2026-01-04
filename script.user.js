@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name          从linux do获取论坛文章数据与复制
 // @namespace     http://tampermonkey.net/
-// @version       0.15.14
+// @version       0.15.15
 // @description   从linux do论坛页面获取文章的板块、标题、链接、标签和内容总结，并在标题旁添加复制按钮。支持设置界面配置。
 // @author        @Loveyless https://github.com/Loveyless/linuxdo-share
 // @match         *://*.linux.do/*
@@ -815,6 +815,10 @@
             min-width: 0;
         }
 
+        html.linuxdo-two-column-layout tbody.topic-list-body > tr.topic-list-item td.main-link.topic-list-data {
+            box-shadow: none !important;
+        }
+
         html.linuxdo-two-column-layout tbody.topic-list-body > tr.topic-list-item td.main-link .link-top-line {
             display: block;
         }
@@ -907,8 +911,8 @@
             align-items: center;
             justify-content: center;
             cursor: pointer;
-            margin-left: 8px;
-            margin-right: 8px;
+            margin-left: 2px;
+            margin-right: 2px;
             transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
         }
 
@@ -1589,9 +1593,8 @@
           suppressBackToTopClick = false;
           return;
         }
-        if (!tryScrollToTopByTimeline()) {
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-        }
+        window.scrollTo(0, 0);
+        tryScrollToTopByTimeline();
       });
 
       let dragging = false;
