@@ -29,14 +29,12 @@
   const DEFAULT_CONFIG = {
     // 是否启用 AI 进行内容总结
     USE_AI_FOR_SUMMARY: false,
-    // AI 模式 gemini/openaiCompatible
-    AI_MODE: 'gemini',
-    // AI Key，如果 USE_AI_FOR_SUMMARY 为 true，则需要填写此项 获取:
+    // AI Key，如果 USE_AI_FOR_SUMMARY 为 true，则需要填写此项
     API_KEY: '',
-    // AI 基础地址
-    API_BASE_URL: 'https://generativelanguage.googleapis.com',
-    // Gemini 模型名称
-    MODEL_NAME: 'gemini-2.5-flash-lite',
+    // API 地址 (OpenAI Compatible 格式，完整地址如 https://api.openai.com/v1/chat/completions)
+    API_BASE_URL: 'https://api.openai.com/v1/chat/completions',
+    // 模型名称
+    MODEL_NAME: 'gpt-4o-mini',
     // 总结后的最大字符数
     LOCAL_SUMMARY_MAX_CHARS: 90,
     // 自定义总结 Prompt
@@ -653,101 +651,51 @@
   // ==========================================================
 
   /**
-   * @description 调用 AI 以获取内容总结。
+   * @description 调用 AI 以获取内容总结 (OpenAI Compatible 格式)。
    * @param {string} prompt - 发送给 API 的完整提示词。
-   * @param {string} apiKey -用户的 AI Key。
-   * @param {string} [model='gemini-2.5-flash-lite'] - 要使用的 Gemini 模型名称。
+   * @param {string} apiKey - 用户的 API Key。
+   * @param {string} [model='gpt-4o-mini'] - 要使用的模型名称。
    * @returns {Promise<string>} 返回 API 生成的文本内容的 Promise。
    */
-  async function callAiAPI(prompt, apiKey, model = 'gemini-2.5-flash-lite') {
-    const aiMode = CONFIG.AI_MODE || DEFAULT_CONFIG.AI_MODE;
+  async function callAiAPI(prompt, apiKey, model = 'gpt-4o-mini') {
+    const url = CONFIG.API_BASE_URL || DEFAULT_CONFIG.API_BASE_URL;
+    const headers = {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`
+    };
+    const body = JSON.stringify({
+      model: model,
+      messages: [{
+        role: 'user',
+        content: prompt
+      }]
+    });
 
-    const baseUrl = CONFIG.API_BASE_URL || DEFAULT_CONFIG.API_BASE_URL;
-
-    // gemini
-    if (aiMode === 'gemini') {
-      const url = `${baseUrl}/v1beta/models/${model}:generateContent?key=${apiKey}`;
-      const headers = {
-        'Content-Type': 'application/json'
-      };
-      const body = JSON.stringify({
-        contents: [{
-          parts: [{
-            text: prompt
-          }]
-        }],
-        generationConfig: {
-          temperature: 0.7, // 调整生成温度
-          topP: 0.9,
-          topK: 40
+    return new Promise((resolve, reject) => {
+      GM_xmlhttpRequest({
+        method: "POST",
+        url: url,
+        headers: headers,
+        data: body,
+        onload: function (response) {
+          try {
+            const data = JSON.parse(response.responseText);
+            if (data.choices && data.choices.length > 0) {
+              resolve(data.choices[0].message.content);
+            } else if (data.error) {
+              reject(new Error(`AI Error: ${JSON.stringify(data.error)}`));
+            } else {
+              reject(new Error('AI returned an unexpected response: ' + JSON.stringify(response)));
+            }
+          } catch (e) {
+            reject(new Error('Failed to parse AI response: ' + e.message + '\nResponse: ' + response.responseText));
+          }
+        },
+        onerror: function (error) {
+          reject(new Error('GM_xmlhttpRequest failed: ' + (error.statusText || 'Unknown error')));
         }
       });
-
-      return new Promise((resolve, reject) => {
-        GM_xmlhttpRequest({
-          method: "POST",
-          url: url,
-          headers: headers,
-          data: body,
-          onload: function (response) {
-            try {
-              const data = JSON.parse(response.responseText);
-              if (data.candidates && data.candidates.length > 0) {
-                resolve(data.candidates[0].content.parts[0].text);
-              } else if (data.error || data.errors) {
-                reject(new Error(`AI Error: ${data.error} ${data.errors}`));
-              } else {
-                reject(new Error('AI returned an unexpected response.' + JSON.stringify(response)));
-              }
-            } catch (e) {
-              reject(new Error('Failed to parse AI response: ' + e.message + '\nResponse: ' + response.responseText));
-            }
-          },
-          onerror: function (error) {
-            reject(new Error('GM_xmlhttpRequest failed: ' + error.statusText || 'Unknown error'));
-          }
-        });
-      });
-    } else if (aiMode === 'openaiCompatible') {
-      const url = baseUrl;
-      const headers = {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
-      };
-      const body = JSON.stringify({
-        model: model,
-        messages: [{
-          role: 'user',
-          content: prompt
-        }]
-      });
-      return new Promise((resolve, reject) => {
-        GM_xmlhttpRequest({
-          method: "POST",
-          url: url,
-          headers: headers,
-          data: body,
-          onload: function (response) {
-            try {
-              const data = JSON.parse(response.responseText);
-              console.log('ai data', data);
-              if (data.choices && data.choices.length > 0) {
-                resolve(data.choices[0].message.content);
-              } else if (data.error && data.errors) {
-                reject(new Error(`AI Error: ${data.error} ${data.errors}`));
-              } else {
-                reject(new Error('AI returned an unexpected response.', JSON.stringify(response)));
-              }
-            } catch (e) {
-              reject(new Error('Failed to parse AI response: ' + e.message + '\nResponse: ' + response.responseText));
-            }
-          },
-          onerror: function (error) {
-            reject(new Error('GM_xmlhttpRequest failed: ' + error.statusText || 'Unknown error'));
-          }
-        });
-      });
-    }
+    });
   }
 
   /**
@@ -1018,7 +966,7 @@
 
         try {
           articleData.summary = `[AI总结]:` + await callAiAPI(prompt, CONFIG.API_KEY, CONFIG.MODEL_NAME);
-          console.log(CONFIG.AI_MODE, CONFIG.MODEL_NAME, '总结:', articleData.summary);
+          console.log('OpenAI Compatible', CONFIG.MODEL_NAME, '总结:', articleData.summary);
           articleData.summary = articleData.summary.replace(/^(.)\s*(\S+)/, '$1$2').trim();
         } catch (error) {
           console.error('AI 总结失败:', error);
@@ -1143,30 +1091,20 @@
           </div>
 
           <div class="linuxdo-settings-field">
-            <label for="aiMode" class="linuxdo-settings-label">AI 模式</label>
-            <select id="aiMode" class="linuxdo-settings-select linuxdo-settings-input">
-              <option value="gemini" ${CONFIG.AI_MODE === 'gemini' ? 'selected' : ''}>Gemini</option>
-              <option value="openaiCompatible" ${CONFIG.AI_MODE === 'openaiCompatible' ? 'selected' : ''}>OpenAI Compatible</option>
-            </select>
+            <label for="apiKey" class="linuxdo-settings-label">API Key</label>
+            <input type="password" id="apiKey" class="linuxdo-settings-input" value="${CONFIG.API_KEY}" placeholder="请输入您的 API Key">
           </div>
 
           <div class="linuxdo-settings-field">
-            <label for="geminiApiKey" class="linuxdo-settings-label">API Key</label>
-            <input type="password" id="geminiApiKey" class="linuxdo-settings-input" value="${CONFIG.API_KEY}" placeholder="请输入您的 API Key">
+            <label for="apiBaseUrl" class="linuxdo-settings-label">API 地址 (完整 URL)</label>
+            <input type="text" id="apiBaseUrl" class="linuxdo-settings-input" value="${CONFIG.API_BASE_URL}" placeholder="https://api.openai.com/v1/chat/completions">
+            <div class="linuxdo-settings-description">OpenAI Compatible 格式的完整 API 地址</div>
+            <div class="linuxdo-settings-description">例如: https://api.openai.com/v1/chat/completions</div>
           </div>
 
           <div class="linuxdo-settings-field">
-            <label for="geminiApiBaseUrl" class="linuxdo-settings-label">API地址</label>
-            <input type="text" id="geminiApiBaseUrl" class="linuxdo-settings-input" value="${CONFIG.API_BASE_URL}" placeholder="https://generativelanguage.googleapis.com">
-            <div class="linuxdo-settings-description">官方key填 https://generativelanguage.googleapis.com</div>
-            <div class="linuxdo-settings-description">gpt-load填 http://ip:port/proxy/customPath</div>
-            <div class="linuxdo-settings-description">获取Gemini官方key<a href="https://aistudio.google.com/apikey" target="_blank">点击获取</a></div>
-            <div class="linuxdo-settings-description">openaiCompatible模式下,地址为全量(一般为baseUrl + /v1/chat/completions)</div>
-          </div>
-
-          <div class="linuxdo-settings-field">
-            <label for="geminiModel" class="linuxdo-settings-label">AI 模型</label>
-            <input type="text" id="geminiModelInput" class="linuxdo-settings-input" value="${CONFIG.MODEL_NAME}" placeholder="输入模型名称">
+            <label for="modelName" class="linuxdo-settings-label">模型名称</label>
+            <input type="text" id="modelName" class="linuxdo-settings-input" value="${CONFIG.MODEL_NAME}" placeholder="gpt-4o-mini">
           </div>
 
           <div class="linuxdo-settings-field">
@@ -1228,19 +1166,17 @@
     saveBtn.addEventListener('click', (e) => {
       e.preventDefault();
 
-      const useGeminiApi = dialog.querySelector('#useGeminiApi').checked;
-      const aiMode = dialog.querySelector('#aiMode').value;
-      const apiKey = dialog.querySelector('#geminiApiKey').value.trim();
-      const apiBaseUrl = dialog.querySelector('#geminiApiBaseUrl').value.trim();
+      const useAiForSummary = dialog.querySelector('#useGeminiApi').checked;
+      const apiKey = dialog.querySelector('#apiKey').value.trim();
+      const apiBaseUrl = dialog.querySelector('#apiBaseUrl').value.trim();
       const localSummaryMaxChars = parseInt(dialog.querySelector('#localSummaryMaxChars').value.trim()) || DEFAULT_CONFIG.LOCAL_SUMMARY_MAX_CHARS;
       const customPrompt = dialog.querySelector('#customPrompt').value.trim();
-      const modelValue = dialog.querySelector('#geminiModelInput').value.trim();
+      const modelName = dialog.querySelector('#modelName').value.trim();
 
-      setConfig('USE_AI_FOR_SUMMARY', useGeminiApi);
-      setConfig('AI_MODE', aiMode);
+      setConfig('USE_AI_FOR_SUMMARY', useAiForSummary);
       setConfig('API_KEY', apiKey);
       setConfig('API_BASE_URL', apiBaseUrl || DEFAULT_CONFIG.API_BASE_URL);
-      setConfig('MODEL_NAME', modelValue || DEFAULT_CONFIG.MODEL_NAME);
+      setConfig('MODEL_NAME', modelName || DEFAULT_CONFIG.MODEL_NAME);
       setConfig('LOCAL_SUMMARY_MAX_CHARS', localSummaryMaxChars);
       setConfig('CUSTOM_SUMMARY_PROMPT', customPrompt || DEFAULT_CONFIG.CUSTOM_SUMMARY_PROMPT);
 
