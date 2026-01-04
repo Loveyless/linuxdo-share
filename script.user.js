@@ -49,6 +49,26 @@
     ].join('\n')
   };
 
+  /**
+   * @description 脚本内部使用的常量配置
+   */
+  const SCRIPT_CONSTANTS = {
+    // API 请求超时时间 (毫秒)
+    API_TIMEOUT_MS: 30000,
+    // AI 总结时发送的最大内容长度
+    AI_CONTENT_MAX_LENGTH: 4000,
+    // 脚本初始化节流时间 (毫秒)
+    INIT_THROTTLE_MS: 300,
+    // 复制成功提示显示时间 (毫秒)
+    COPY_SUCCESS_DURATION_MS: 2000,
+    // 复制失败提示显示时间 (毫秒)
+    COPY_FAILURE_DURATION_MS: 3000,
+    // 设置保存后关闭延迟 (毫秒)
+    SETTINGS_CLOSE_DELAY_MS: 300,
+    // Dialog 关闭动画时间 (毫秒)
+    DIALOG_CLOSE_ANIMATION_MS: 200
+  };
+
   // #endregion
 
   // #region 配置管理
@@ -105,10 +125,10 @@
             --button-outline-width: 2px;
             --button-outline-color: #9f9f9f;
             --tooltip-bg: #1d2129;
-            --toolptip-border-radius: 4px;
+            --tooltip-border-radius: 4px;
             --tooltip-font-family: JetBrains Mono, Consolas, Menlo, Roboto Mono, monospace;
             --tooltip-font-size: 12px;
-            --tootip-text-color: #fff;
+            --tooltip-text-color: #fff;
             --tooltip-padding-x: 7px;
             --tooltip-padding-y: 7px;
             --tooltip-offset: 8px;
@@ -121,7 +141,7 @@
             --button-outline-color: #999;
             --button-hover-text-color: #8bb9fe;
             --tooltip-bg: #f4f3f3;
-            --tootip-text-color: #111;
+            --tooltip-text-color: #111;
         }
 
         .copy-button {
@@ -162,10 +182,10 @@
             transform: translateY(-50%);
             white-space: nowrap;
             font: var(--tooltip-font-size) var(--tooltip-font-family);
-            color: var(--tootip-text-color);
+            color: var(--tooltip-text-color);
             background: var(--tooltip-bg);
             padding: var(--tooltip-padding-y) var(--tooltip-padding-x);
-            border-radius: var(--toolptip-border-radius);
+            border-radius: var(--tooltip-border-radius);
             pointer-events: none;
             transition: all var(--tooltip-transition-duration, 0.3s) cubic-bezier(0.68, -0.55, 0.265, 1.55);
             z-index: 1000;
@@ -651,6 +671,18 @@
   // ==========================================================
 
   /**
+   * @description 转义 HTML 特殊字符，防止 XSS 攻击。
+   * @param {string} str - 要转义的字符串。
+   * @returns {string} 转义后的安全字符串。
+   */
+  function escapeHtml(str) {
+    if (typeof str !== 'string') return '';
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  /**
    * @description 调用 AI 以获取内容总结 (OpenAI Compatible 格式)。
    * @param {string} prompt - 发送给 API 的完整提示词。
    * @param {string} apiKey - 用户的 API Key。
@@ -677,7 +709,13 @@
         url: url,
         headers: headers,
         data: body,
+        timeout: SCRIPT_CONSTANTS.API_TIMEOUT_MS, // API 请求超时
         onload: function (response) {
+          // 检查 HTTP 状态码
+          if (response.status < 200 || response.status >= 300) {
+            reject(new Error(`HTTP Error: ${response.status} ${response.statusText}`));
+            return;
+          }
           try {
             const data = JSON.parse(response.responseText);
             if (data.choices && data.choices.length > 0) {
@@ -685,14 +723,17 @@
             } else if (data.error) {
               reject(new Error(`AI Error: ${JSON.stringify(data.error)}`));
             } else {
-              reject(new Error('AI returned an unexpected response: ' + JSON.stringify(response)));
+              reject(new Error(`AI returned an unexpected response: ${JSON.stringify(data)}`));
             }
           } catch (e) {
-            reject(new Error('Failed to parse AI response: ' + e.message + '\nResponse: ' + response.responseText));
+            reject(new Error(`Failed to parse AI response: ${e.message}\nResponse: ${response.responseText}`));
           }
         },
         onerror: function (error) {
-          reject(new Error('GM_xmlhttpRequest failed: ' + (error.statusText || 'Unknown error')));
+          reject(new Error(`GM_xmlhttpRequest failed: ${error.statusText || 'Unknown error'}`));
+        },
+        ontimeout: function () {
+          reject(new Error(`API request timed out after ${SCRIPT_CONSTANTS.API_TIMEOUT_MS / 1000} seconds`));
         }
       });
     });
@@ -710,7 +751,7 @@
     setTimeout(() => {
       element.classList.remove('copy-failed');
       element.blur(); // 移除焦点，重置提示
-    }, 3000); // 3秒后移除失败提示
+    }, SCRIPT_CONSTANTS.COPY_FAILURE_DURATION_MS);
   }
 
   /**
@@ -726,28 +767,10 @@
       element.focus(); // 触发 :focus 样式显示“已复制”
       setTimeout(() => {
         element.blur(); // 移除焦点，重置提示
-      }, 2000); // 2秒后移除成功提示
+      }, SCRIPT_CONSTANTS.COPY_SUCCESS_DURATION_MS);
     }).catch(function (error) {
       handleCopyError({ element, error });
     });
-  }
-  /**
-   * @description 节流函数
-   * @param {Function} func - 要节流的函数
-   * @param {number} delay - 节流的延迟时间(毫秒)
-   * @returns {Function} 节流后的函数
-   */
-  function throttle(func, delay) {
-    let timer;
-    function throttled(...param) {
-      if (timer) return;
-      timer = setTimeout(() => {
-        func.apply(this, param);
-        clearTimeout(timer);
-        timer = null;
-      }, delay);
-    }
-    return throttled;
   }
   /**
    * 创建一个节流函数，在 wait 秒内最多执行 func 一次。
@@ -760,7 +783,7 @@
    * @param {boolean} [options.trailing=true] 指定在节流结束后（后缘）调用。
    * @returns {Function} 返回新的节流函数。
    */
-  function throttleFormGemini(func, wait, options = {}) {
+  function throttleInit(func, wait, options = {}) {
     let timeout = null;
     let lastArgs = null;
     let lastThis = null;
@@ -859,11 +882,10 @@
     };
 
     // 获取板块名称
-    const categoryElement = document.querySelectorAll('.topic-category .badge-category__wrapper');
-    if (categoryElement) {
-      const categoryArr = Array.from(categoryElement);
-      const lastIndex = categoryArr.length - 1;
-      userData.category = categoryArr[lastIndex].textContent.trim();
+    const categoryElements = document.querySelectorAll('.topic-category .badge-category__wrapper');
+    if (categoryElements.length > 0) {
+      const lastIndex = categoryElements.length - 1;
+      userData.category = categoryElements[lastIndex].textContent.trim();
     }
 
     // 获取用户名
@@ -958,7 +980,7 @@
 
       if (CONFIG.USE_AI_FOR_SUMMARY && CONFIG.API_KEY) {
         console.log('尝试使用 AI 总结内容...');
-        const contentToSummarize = fullTextContent.substring(0, 4000);
+        const contentToSummarize = fullTextContent.substring(0, SCRIPT_CONSTANTS.AI_CONTENT_MAX_LENGTH);
         const customPrompt = CONFIG.CUSTOM_SUMMARY_PROMPT || DEFAULT_CONFIG.CUSTOM_SUMMARY_PROMPT;
         const prompt = customPrompt
           .replace('{maxChars}', CONFIG.LOCAL_SUMMARY_MAX_CHARS)
@@ -1084,27 +1106,27 @@
         <form class="linuxdo-settings-form" method="dialog">
           <div class="linuxdo-settings-field">
             <div class="linuxdo-settings-checkbox-wrapper">
-              <input type="checkbox" id="useGeminiApi" class="linuxdo-settings-checkbox" ${CONFIG.USE_AI_FOR_SUMMARY ? 'checked' : ''}>
-              <label for="useGeminiApi" class="linuxdo-settings-label" style="color:#7d0000;font-size:16px">启用 AI 自动总结</label>
+              <input type="checkbox" id="useAiForSummary" class="linuxdo-settings-checkbox" ${CONFIG.USE_AI_FOR_SUMMARY ? 'checked' : ''}>
+              <label for="useAiForSummary" class="linuxdo-settings-label" style="color:#7d0000;font-size:16px">启用 AI 自动总结</label>
             </div>
             <div class="linuxdo-settings-description">开启后将使用 AI 对文章内容进行智能总结</div>
           </div>
 
           <div class="linuxdo-settings-field">
             <label for="apiKey" class="linuxdo-settings-label">API Key</label>
-            <input type="password" id="apiKey" class="linuxdo-settings-input" value="${CONFIG.API_KEY}" placeholder="请输入您的 API Key">
+            <input type="password" id="apiKey" class="linuxdo-settings-input" value="${escapeHtml(CONFIG.API_KEY)}" placeholder="请输入您的 API Key">
           </div>
 
           <div class="linuxdo-settings-field">
             <label for="apiBaseUrl" class="linuxdo-settings-label">API 地址 (完整 URL)</label>
-            <input type="text" id="apiBaseUrl" class="linuxdo-settings-input" value="${CONFIG.API_BASE_URL}" placeholder="https://api.openai.com/v1/chat/completions">
+            <input type="text" id="apiBaseUrl" class="linuxdo-settings-input" value="${escapeHtml(CONFIG.API_BASE_URL)}" placeholder="https://api.openai.com/v1/chat/completions">
             <div class="linuxdo-settings-description">OpenAI Compatible 格式的完整 API 地址</div>
             <div class="linuxdo-settings-description">例如: https://api.openai.com/v1/chat/completions</div>
           </div>
 
           <div class="linuxdo-settings-field">
             <label for="modelName" class="linuxdo-settings-label">模型名称</label>
-            <input type="text" id="modelName" class="linuxdo-settings-input" value="${CONFIG.MODEL_NAME}" placeholder="gpt-4o-mini">
+            <input type="text" id="modelName" class="linuxdo-settings-input" value="${escapeHtml(CONFIG.MODEL_NAME)}" placeholder="gpt-4o-mini">
           </div>
 
           <div class="linuxdo-settings-field">
@@ -1115,7 +1137,7 @@
 
           <div class="linuxdo-settings-field">
             <label for="customPrompt" class="linuxdo-settings-label">自定义总结 Prompt</label>
-            <textarea id="customPrompt" class="linuxdo-settings-textarea" placeholder="输入自定义的总结提示词">${CONFIG.CUSTOM_SUMMARY_PROMPT}</textarea>
+            <textarea id="customPrompt" class="linuxdo-settings-textarea" placeholder="输入自定义的总结提示词">${escapeHtml(CONFIG.CUSTOM_SUMMARY_PROMPT)}</textarea>
             <div class="linuxdo-settings-description">{maxChars} 总结后粘贴板的最大字符数(未启用AI总结时则为正文截断字符数)</div>
             <div class="linuxdo-settings-description">可以使用 {content} 作为占位符，代表帖子正文内容</div>
           </div>
@@ -1139,7 +1161,6 @@
     const closeBtn = dialog.querySelector('.linuxdo-settings-close');
     const cancelBtn = dialog.querySelector('#cancelSettings');
     const saveBtn = dialog.querySelector('#saveSettings');
-    const modelWrapper = dialog.querySelector('.linuxdo-model-input-wrapper');
 
     const closeDialog = () => {
       if (typeof dialog.close === 'function') {
@@ -1147,7 +1168,7 @@
         setTimeout(() => {
           dialog.close();
           dialog.remove();
-        }, 200);
+        }, SCRIPT_CONSTANTS.DIALOG_CLOSE_ANIMATION_MS);
       } else {
         dialog.remove();
         const backdrop = document.querySelector('.dialog-backdrop-fallback');
@@ -1166,7 +1187,7 @@
     saveBtn.addEventListener('click', (e) => {
       e.preventDefault();
 
-      const useAiForSummary = dialog.querySelector('#useGeminiApi').checked;
+      const useAiForSummary = dialog.querySelector('#useAiForSummary').checked;
       const apiKey = dialog.querySelector('#apiKey').value.trim();
       const apiBaseUrl = dialog.querySelector('#apiBaseUrl').value.trim();
       const localSummaryMaxChars = parseInt(dialog.querySelector('#localSummaryMaxChars').value.trim()) || DEFAULT_CONFIG.LOCAL_SUMMARY_MAX_CHARS;
@@ -1186,7 +1207,7 @@
 
       setTimeout(() => {
         closeDialog();
-      }, 300);
+      }, SCRIPT_CONSTANTS.SETTINGS_CLOSE_DELAY_MS);
     });
   }
 
@@ -1285,7 +1306,7 @@
   if (window === window.top) {
 
     // 添加复制按钮函数增加节流
-    let initializeScriptThrottleFormGemini = throttleFormGemini(initializeScript, 300);
+    let throttledInitialize = throttleInit(initializeScript, SCRIPT_CONSTANTS.INIT_THROTTLE_MS);
 
     // 注入样式
     addStyle(copyBtnStyle);
@@ -1295,16 +1316,16 @@
 
     // 使用 MutationObserver 监听 DOM 变化，以适应动态加载内容的单页应用 (SPA)
     const observer = new MutationObserver((mutationsList, observerInstance) => {
-      initializeScriptThrottleFormGemini();
+      throttledInitialize();
     });
 
     observer.observe(document.body, { childList: true, subtree: true });
 
     // 初始加载时也尝试运行一次
     if (document.readyState === 'loading') {
-      window.addEventListener('DOMContentLoaded', initializeScriptThrottleFormGemini);
+      window.addEventListener('DOMContentLoaded', throttledInitialize);
     } else {
-      initializeScriptThrottleFormGemini();
+      throttledInitialize();
     }
   } else {
     // console.log("在 iframe 中，跳过脚本功能初始化");
