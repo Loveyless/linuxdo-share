@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name          从linux do获取论坛文章数据与复制
 // @namespace     http://tampermonkey.net/
-// @version       0.15.15
+// @version       0.15.16
 // @description   从linux do论坛页面获取文章的板块、标题、链接、标签和内容总结，并在标题旁添加复制按钮。支持设置界面配置。
 // @author        @Loveyless https://github.com/Loveyless/linuxdo-share
 // @match         *://*.linux.do/*
@@ -1511,6 +1511,9 @@
   const BACK_TO_TOP_POSITION_STORAGE_KEY = `BACK_TO_TOP_POSITION_V1_${window.location.host}`;
   let backToTopButtonEl = null;
   let suppressBackToTopClick = false;
+  let backToTopRetryTimer = null;
+  const BACK_TO_TOP_RETRY_INTERVAL_MS = 300;
+  const BACK_TO_TOP_RETRY_MAX_ATTEMPTS = 40;
 
   function isTopicPageForBackToTop() {
     const path = window.location.pathname || '';
@@ -1566,8 +1569,52 @@
     return false;
   }
 
+  function clearBackToTopRetryTimer() {
+    if (backToTopRetryTimer) {
+      clearInterval(backToTopRetryTimer);
+      backToTopRetryTimer = null;
+    }
+  }
+
+  function getTimelineRepliesCurrentIndex() {
+    const el = document.querySelector('.timeline-replies');
+    if (!el) return null;
+    const text = String(el.textContent || '').trim().replace(/\s+/g, ' ');
+    const match = text.match(/(\d+)\s*\/\s*\d+/);
+    if (!match) return null;
+    const current = Number.parseInt(match[1], 10);
+    return Number.isFinite(current) ? current : null;
+  }
+
+  function performBackToTop() {
+    window.scrollTo(0, 0);
+    tryScrollToTopByTimeline();
+  }
+
+  function startBackToTopRetryUntilFirstPage() {
+    clearBackToTopRetryTimer();
+
+    let attempts = 0;
+    backToTopRetryTimer = setInterval(() => {
+      attempts += 1;
+      const currentIndex = getTimelineRepliesCurrentIndex();
+      if (currentIndex === 1) {
+        clearBackToTopRetryTimer();
+        return;
+      }
+
+      if (attempts >= BACK_TO_TOP_RETRY_MAX_ATTEMPTS) {
+        clearBackToTopRetryTimer();
+        return;
+      }
+
+      performBackToTop();
+    }, BACK_TO_TOP_RETRY_INTERVAL_MS);
+  }
+
   function ensureBackToTopButton() {
     if (!isTopicPageForBackToTop()) {
+      clearBackToTopRetryTimer();
       if (backToTopButtonEl) backToTopButtonEl.style.display = 'none';
       return;
     }
@@ -1593,8 +1640,8 @@
           suppressBackToTopClick = false;
           return;
         }
-        window.scrollTo(0, 0);
-        tryScrollToTopByTimeline();
+        performBackToTop();
+        startBackToTopRetryUntilFirstPage();
       });
 
       let dragging = false;
