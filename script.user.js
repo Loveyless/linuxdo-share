@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name          从linux do获取论坛文章数据与复制
 // @namespace     http://tampermonkey.net/
-// @version       0.15.6
+// @version       0.15.7
 // @description   从linux do论坛页面获取文章的板块、标题、链接、标签和内容总结，并在标题旁添加复制按钮。支持设置界面配置。
 // @author        @Loveyless https://github.com/Loveyless/linuxdo-share
 // @match         *://*.linux.do/*
@@ -29,6 +29,8 @@
   const DEFAULT_CONFIG = {
     // 是否启用简洁模式：标题+摘要合并一段，隐藏作者/板块/标签，链接单独一行
     COMPACT_MODE: false,
+    // 是否启用两栏布局（主题列表页）
+    TWO_COLUMN_LAYOUT: false,
     // 是否启用 AI 进行内容总结
     USE_AI_FOR_SUMMARY: false,
     // AI Key，如果 USE_AI_FOR_SUMMARY 为 true，则需要填写此项
@@ -639,6 +641,186 @@
                 grid-template-columns: 1fr;
             }
         }
+
+        /* 主题列表两栏布局 */
+        html.linuxdo-two-column-layout {
+            --ld-list-bg: #ffffff;
+            --ld-list-fg: #0f172a;
+            --ld-list-muted: #64748b;
+            --ld-list-border: rgba(15, 23, 42, 0.12);
+            --ld-list-card: #ffffff;
+            --ld-list-ring: rgba(59, 130, 246, 0.18);
+        }
+
+        html[style*="color-scheme: dark"].linuxdo-two-column-layout {
+            --ld-list-bg: #0b1220;
+            --ld-list-fg: #e2e8f0;
+            --ld-list-muted: #94a3b8;
+            --ld-list-border: rgba(148, 163, 184, 0.18);
+            --ld-list-card: #0f172a;
+            --ld-list-ring: rgba(59, 130, 246, 0.28);
+        }
+
+        html.linuxdo-two-column-layout table.topic-list {
+            display: block !important;
+            width: 100% !important;
+            background: transparent !important;
+        }
+
+        html.linuxdo-two-column-layout table.topic-list thead {
+            display: block !important;
+            padding: 0 0 8px;
+        }
+
+        html.linuxdo-two-column-layout table.topic-list thead tr {
+            display: block !important;
+        }
+
+        html.linuxdo-two-column-layout table.topic-list thead th {
+            display: block !important;
+            border: none !important;
+            padding: 0 2px 10px !important;
+            color: var(--ld-list-muted) !important;
+            font-size: 12px !important;
+            font-weight: 600 !important;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+
+        html.linuxdo-two-column-layout table.topic-list thead th.posters,
+        html.linuxdo-two-column-layout table.topic-list thead th.num,
+        html.linuxdo-two-column-layout table.topic-list thead th.posts,
+        html.linuxdo-two-column-layout table.topic-list thead th.views,
+        html.linuxdo-two-column-layout table.topic-list thead th.activity,
+        html.linuxdo-two-column-layout table.topic-list thead th.age {
+            display: none !important;
+        }
+
+        html.linuxdo-two-column-layout tbody.topic-list-body {
+            display: grid !important;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+            padding: 0 !important;
+        }
+
+        html.linuxdo-two-column-layout tbody.topic-list-body > tr:not(.topic-list-item) {
+            grid-column: 1 / -1;
+        }
+
+        @media (max-width: 900px) {
+            html.linuxdo-two-column-layout tbody.topic-list-body {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        html.linuxdo-two-column-layout tbody.topic-list-body > tr.topic-list-item {
+            display: flex !important;
+            flex-direction: column;
+            background: var(--ld-list-card);
+            border: 1px solid var(--ld-list-border);
+            border-radius: 12px;
+            padding: 12px 12px 10px;
+            margin: 0 !important;
+            overflow: hidden;
+            transition: box-shadow 0.15s ease, border-color 0.15s ease, transform 0.05s ease;
+        }
+
+        html.linuxdo-two-column-layout tbody.topic-list-body > tr.topic-list-item:hover {
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08), 0 0 0 3px var(--ld-list-ring);
+        }
+
+        html[style*="color-scheme: dark"].linuxdo-two-column-layout tbody.topic-list-body > tr.topic-list-item:hover {
+            box-shadow: 0 18px 44px rgba(0, 0, 0, 0.35), 0 0 0 3px var(--ld-list-ring);
+        }
+
+        html.linuxdo-two-column-layout tbody.topic-list-body > tr.topic-list-item > td {
+            display: block !important;
+            width: 100% !important;
+            padding: 0 !important;
+            border: none !important;
+            background: transparent !important;
+        }
+
+        html.linuxdo-two-column-layout tbody.topic-list-body td.posters,
+        html.linuxdo-two-column-layout tbody.topic-list-body td.num {
+            display: none !important;
+        }
+
+        html.linuxdo-two-column-layout tbody.topic-list-body > tr.topic-list-item td.main-link {
+            min-width: 0;
+        }
+
+        html.linuxdo-two-column-layout tbody.topic-list-body > tr.topic-list-item td.main-link .link-top-line {
+            display: block;
+        }
+
+        html.linuxdo-two-column-layout tbody.topic-list-body > tr.topic-list-item td.main-link a.raw-topic-link {
+            color: var(--ld-list-fg) !important;
+            font-size: 15px;
+            font-weight: 600;
+            line-height: 1.35;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            text-decoration: none;
+        }
+
+        html.linuxdo-two-column-layout tbody.topic-list-body > tr.topic-list-item td.main-link a.raw-topic-link:hover {
+            text-decoration: underline;
+        }
+
+        html.linuxdo-two-column-layout tbody.topic-list-body > tr.topic-list-item td.main-link .link-bottom-line {
+            margin-top: 8px;
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        html.linuxdo-two-column-layout .linuxdo-topic-meta {
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid var(--ld-list-border);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--ld-list-muted);
+            font-size: 12px;
+            line-height: 1.2;
+            white-space: nowrap;
+        }
+
+        html.linuxdo-two-column-layout .linuxdo-topic-meta-avatar {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 22px;
+            height: 22px;
+            border-radius: 999px;
+            overflow: hidden;
+            flex-shrink: 0;
+            border: 1px solid var(--ld-list-border);
+            background: var(--ld-list-bg);
+        }
+
+        html.linuxdo-two-column-layout .linuxdo-topic-meta-avatar img {
+            width: 22px;
+            height: 22px;
+            display: block;
+        }
+
+        html.linuxdo-two-column-layout .linuxdo-topic-meta-item {
+            display: inline-flex;
+            align-items: center;
+            white-space: nowrap;
+        }
+
+        html.linuxdo-two-column-layout .linuxdo-topic-meta-item + .linuxdo-topic-meta-item::before {
+            content: "·";
+            margin: 0 6px 0 0;
+            color: var(--ld-list-muted);
+        }
     `;
 
   /**
@@ -1114,6 +1296,104 @@
   }
   // #endregion
 
+  // #region 主题列表布局
+  // ==========================================================
+
+  /**
+   * @description 清理两栏布局的增强 DOM，恢复为默认样式。
+   */
+  function cleanupTwoColumnLayout() {
+    document.documentElement.classList.remove('linuxdo-two-column-layout');
+
+    document.querySelectorAll('.linuxdo-topic-meta').forEach((el) => el.remove());
+    document.querySelectorAll('tr.topic-list-item[data-linuxdo-two-column-enhanced="1"]').forEach((tr) => {
+      tr.removeAttribute('data-linuxdo-two-column-enhanced');
+    });
+  }
+
+  /**
+   * @description 在主题列表页启用/刷新两栏布局。
+   * 将回复/浏览/活动/发帖人收纳到标题下方，避免挤压标题区域。
+   */
+  function applyTwoColumnLayoutToTopicLists() {
+    if (!CONFIG.TWO_COLUMN_LAYOUT) {
+      cleanupTwoColumnLayout();
+      return;
+    }
+
+    document.documentElement.classList.add('linuxdo-two-column-layout');
+
+    const topicListBodies = document.querySelectorAll('tbody.topic-list-body');
+    if (!topicListBodies || topicListBodies.length === 0) return;
+
+    topicListBodies.forEach((tbody) => {
+      const rows = tbody.querySelectorAll('tr.topic-list-item');
+      if (!rows || rows.length === 0) return;
+
+      rows.forEach((row) => {
+        if (row.getAttribute('data-linuxdo-two-column-enhanced') === '1') {
+          return;
+        }
+
+        const mainLinkCell = row.querySelector('td.main-link');
+        if (!mainLinkCell) return;
+
+        const meta = document.createElement('div');
+        meta.className = 'linuxdo-topic-meta';
+
+        // a: 发帖人头像（取 posters 列的第一个 a）
+        const avatarAnchor = row.querySelector('td.posters a');
+        const avatarImg = avatarAnchor ? avatarAnchor.querySelector('img') : null;
+        if (avatarAnchor && avatarImg) {
+          const avatar = document.createElement('a');
+          avatar.className = 'linuxdo-topic-meta-avatar';
+          avatar.href = avatarAnchor.getAttribute('href') || '#';
+          avatar.setAttribute('aria-label', '发帖人');
+          const title = avatarAnchor.getAttribute('title');
+          if (title) avatar.title = title;
+          avatar.appendChild(avatarImg.cloneNode(true));
+          meta.appendChild(avatar);
+        }
+
+        const addMetaItem = (text, title) => {
+          const value = (text || '').trim();
+          if (!value) return;
+          const span = document.createElement('span');
+          span.className = 'linuxdo-topic-meta-item';
+          span.textContent = value;
+          if (title) span.title = title;
+          meta.appendChild(span);
+        };
+
+        // b: 回复数（posts-map 列的第一个 a）
+        const repliesEl = row.querySelector('td.num.posts-map a.badge-posts .number') || row.querySelector('td.num.posts-map .number');
+        addMetaItem(repliesEl ? repliesEl.textContent : '', '回复');
+
+        // c: 浏览量
+        const viewsEl = row.querySelector('td.num.views .number') || row.querySelector('td.views .number');
+        addMetaItem(viewsEl ? viewsEl.textContent : '', '浏览');
+
+        // 活动时间（relative-date）
+        const activityEl = row.querySelector('td.activity .relative-date') || row.querySelector('td.age .relative-date');
+        addMetaItem(activityEl ? activityEl.textContent : '', '活动');
+
+        if (!meta.firstChild) return;
+
+        // 插入到主列底部（category/tags 下方）
+        const bottomLine = mainLinkCell.querySelector('.link-bottom-line');
+        if (bottomLine && bottomLine.parentNode) {
+          bottomLine.parentNode.insertBefore(meta, bottomLine.nextSibling);
+        } else {
+          mainLinkCell.appendChild(meta);
+        }
+
+        row.setAttribute('data-linuxdo-two-column-enhanced', '1');
+      });
+    });
+  }
+
+  // #endregion
+
   // #region 设置界面
   // ==========================================================
 
@@ -1148,6 +1428,25 @@
                 </div>
                 <label class="linuxdo-settings-switch">
                   <input type="checkbox" id="compactMode" ${CONFIG.COMPACT_MODE ? 'checked' : ''}>
+                  <span class="linuxdo-settings-switch-slider"></span>
+                </label>
+              </div>
+            </div>
+          </section>
+
+          <section class="linuxdo-settings-section">
+            <div class="linuxdo-settings-section-header">
+              <h3 class="linuxdo-settings-section-title">列表布局</h3>
+              <p class="linuxdo-settings-section-desc">仅影响主题列表页（最新 / 分类 / 标签等）</p>
+            </div>
+            <div class="linuxdo-settings-card">
+              <div class="linuxdo-settings-item">
+                <div class="linuxdo-settings-item-text">
+                  <label class="linuxdo-settings-item-label" for="twoColumnLayout">两栏布局</label>
+                  <div class="linuxdo-settings-description">开启后：列表以两栏卡片展示；发帖人/回复/浏览/活动信息收纳到标题下方，避免挤压标题</div>
+                </div>
+                <label class="linuxdo-settings-switch">
+                  <input type="checkbox" id="twoColumnLayout" ${CONFIG.TWO_COLUMN_LAYOUT ? 'checked' : ''}>
                   <span class="linuxdo-settings-switch-slider"></span>
                 </label>
               </div>
@@ -1258,6 +1557,7 @@
       e.preventDefault();
 
       const compactMode = dialog.querySelector('#compactMode').checked;
+      const twoColumnLayout = dialog.querySelector('#twoColumnLayout').checked;
       const useAiForSummary = dialog.querySelector('#useAiForSummary').checked;
       const apiKey = dialog.querySelector('#apiKey').value.trim();
       const apiBaseUrl = dialog.querySelector('#apiBaseUrl').value.trim();
@@ -1266,12 +1566,15 @@
       const modelName = dialog.querySelector('#modelName').value.trim();
 
       setConfig('COMPACT_MODE', compactMode);
+      setConfig('TWO_COLUMN_LAYOUT', twoColumnLayout);
       setConfig('USE_AI_FOR_SUMMARY', useAiForSummary);
       setConfig('API_KEY', apiKey);
       setConfig('API_BASE_URL', apiBaseUrl || DEFAULT_CONFIG.API_BASE_URL);
       setConfig('MODEL_NAME', modelName || DEFAULT_CONFIG.MODEL_NAME);
       setConfig('LOCAL_SUMMARY_MAX_CHARS', localSummaryMaxChars);
       setConfig('CUSTOM_SUMMARY_PROMPT', customPrompt || DEFAULT_CONFIG.CUSTOM_SUMMARY_PROMPT);
+
+      applyTwoColumnLayoutToTopicLists();
 
       const originalText = saveBtn.textContent;
       saveBtn.textContent = '已保存';
@@ -1345,6 +1648,9 @@
 
     // console.log("油猴脚本已尝试初始化。");
 
+    // 主题列表布局（两栏）
+    applyTwoColumnLayoutToTopicLists();
+
     const titleLinkElement = document.querySelector('h1[data-topic-id] a.fancy-title');
     const articleRootElement = document.querySelector('.cooked');
     const userDataContainer = document.querySelector('.topic-meta-data');
@@ -1363,7 +1669,7 @@
       }
 
       addCopyButtonToArticleTitle(titleLinkElement);
-    } else {
+    } else if (document.querySelector('h1[data-topic-id]')) {
       console.log('部分所需元素未找到，等待DOM更新:', {
         title: !!titleLinkElement,
         content: !!articleRootElement,
