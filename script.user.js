@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name          从linux do获取论坛文章数据与复制
 // @namespace     http://tampermonkey.net/
-// @version       0.15.12
+// @version       0.15.13
 // @description   从linux do论坛页面获取文章的板块、标题、链接、标签和内容总结，并在标题旁添加复制按钮。支持设置界面配置。
 // @author        @Loveyless https://github.com/Loveyless/linuxdo-share
 // @match         *://*.linux.do/*
@@ -31,6 +31,8 @@
     COMPACT_MODE: false,
     // 主题列表分栏数（0/空表示关闭，最大 5；未设置时默认 2）
     TWO_COLUMN_LAYOUT: 2,
+    // 主题列表瀑布流展示（仅分栏数>0时生效）
+    TOPIC_LIST_WATERFALL: false,
     // 是否启用 AI 进行内容总结
     USE_AI_FOR_SUMMARY: false,
     // AI Key，如果 USE_AI_FOR_SUMMARY 为 true，则需要填写此项
@@ -501,8 +503,8 @@
             background: var(--ld-bg);
             color: var(--ld-fg);
             border-radius: 9px;
-            padding: 8px 10px;
-            font-size: 12px;
+            padding: 7px 9px;
+            font-size: 11px;
             line-height: 1.4;
             font-family: inherit;
             outline: none;
@@ -517,13 +519,13 @@
         }
 
         .linuxdo-settings-input.small {
-            width: 72px;
+            width: 68px;
             text-align: center;
-            padding: 7px 10px;
+            padding: 6px 8px;
         }
 
         .linuxdo-settings-unit {
-            font-size: 12px;
+            font-size: 11px;
             color: var(--ld-muted-fg);
             line-height: 1;
         }
@@ -729,9 +731,31 @@
             grid-column: 1 / -1;
         }
 
+        /* 瀑布流（Masonry）：使用多列布局模拟 */
+        html.linuxdo-two-column-layout.linuxdo-topic-waterfall tbody.topic-list-body {
+            display: block !important;
+            column-count: var(--ld-topic-columns, 2);
+            column-gap: 12px;
+        }
+
+        html.linuxdo-two-column-layout.linuxdo-topic-waterfall tbody.topic-list-body > tr.topic-list-item {
+            break-inside: avoid;
+            margin-bottom: 12px !important;
+        }
+
+        html.linuxdo-two-column-layout.linuxdo-topic-waterfall tbody.topic-list-body > tr:not(.topic-list-item) {
+            column-span: all;
+            break-inside: avoid;
+            margin-bottom: 12px;
+        }
+
         @media (max-width: 900px) {
             html.linuxdo-two-column-layout tbody.topic-list-body {
                 grid-template-columns: 1fr;
+            }
+
+            html.linuxdo-two-column-layout.linuxdo-topic-waterfall tbody.topic-list-body {
+                column-count: 1;
             }
         }
 
@@ -1060,6 +1084,64 @@
             text-align: center;
             font-size: 12px;
             color: var(--ld-h-muted-fg);
+        }
+
+        /* 话题页：回到顶部（可拖动） */
+        .linuxdo-back-to-top {
+            --ld-btt-bg: #ffffff;
+            --ld-btt-fg: #0f172a;
+            --ld-btt-muted: #f1f5f9;
+            --ld-btt-muted-fg: #64748b;
+            --ld-btt-border: rgba(15, 23, 42, 0.12);
+            --ld-btt-ring: rgba(59, 130, 246, 0.45);
+
+            position: fixed;
+            z-index: 100000;
+            width: 42px;
+            height: 42px;
+            border-radius: 999px;
+            border: 1px solid var(--ld-btt-border);
+            background: var(--ld-btt-bg);
+            color: var(--ld-btt-fg);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            cursor: grab;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+            touch-action: none;
+            user-select: none;
+            transition: transform 0.05s ease, box-shadow 0.15s ease, background 0.15s ease;
+        }
+
+        html[style*="color-scheme: dark"] .linuxdo-back-to-top {
+            --ld-btt-bg: #0b1220;
+            --ld-btt-fg: #e2e8f0;
+            --ld-btt-muted: rgba(148, 163, 184, 0.12);
+            --ld-btt-muted-fg: #94a3b8;
+            --ld-btt-border: rgba(148, 163, 184, 0.18);
+            --ld-btt-ring: rgba(59, 130, 246, 0.55);
+            box-shadow: 0 16px 42px rgba(0, 0, 0, 0.45);
+        }
+
+        .linuxdo-back-to-top:hover {
+            box-shadow: 0 14px 40px rgba(0, 0, 0, 0.18), 0 0 0 3px var(--ld-btt-ring);
+            background: var(--ld-btt-bg);
+        }
+
+        .linuxdo-back-to-top:active {
+            cursor: grabbing;
+            transform: translateY(1px);
+        }
+
+        .linuxdo-back-to-top:focus-visible {
+            outline: none;
+            box-shadow: 0 0 0 3px var(--ld-btt-ring);
+        }
+
+        .linuxdo-back-to-top svg {
+            width: 18px;
+            height: 18px;
+            display: block;
         }
     `;
 
@@ -1414,6 +1496,165 @@
     }
 
     container.appendChild(trigger);
+  }
+
+  // #endregion
+
+  // #region 回到顶部按钮（话题页）
+  // ==========================================================
+
+  const BACK_TO_TOP_POSITION_STORAGE_KEY = `BACK_TO_TOP_POSITION_V1_${window.location.host}`;
+  let backToTopButtonEl = null;
+  let suppressBackToTopClick = false;
+
+  function isTopicPageForBackToTop() {
+    const path = window.location.pathname || '';
+    return /^\/t\/topic\/\d+(?:\/\d+)?/.test(path);
+  }
+
+  function getBackToTopSavedPosition() {
+    const pos = GM_getValue(BACK_TO_TOP_POSITION_STORAGE_KEY, null);
+    if (!pos || typeof pos !== 'object') return null;
+    const left = Number(pos.left);
+    const top = Number(pos.top);
+    if (!Number.isFinite(left) || !Number.isFinite(top)) return null;
+    return { left, top };
+  }
+
+  function clampBackToTopPosition(pos, size = 42) {
+    const min = 8;
+    const maxLeft = Math.max(min, window.innerWidth - size - min);
+    const maxTop = Math.max(min, window.innerHeight - size - min);
+    return {
+      left: Math.min(Math.max(pos.left, min), maxLeft),
+      top: Math.min(Math.max(pos.top, min), maxTop),
+    };
+  }
+
+  function applyBackToTopPosition(el, pos) {
+    const safe = clampBackToTopPosition(pos, el ? el.offsetWidth || 42 : 42);
+    el.style.left = `${Math.round(safe.left)}px`;
+    el.style.top = `${Math.round(safe.top)}px`;
+    el.style.right = 'auto';
+    el.style.bottom = 'auto';
+  }
+
+  function saveBackToTopPosition(pos) {
+    try {
+      GM_setValue(BACK_TO_TOP_POSITION_STORAGE_KEY, pos);
+    } catch (error) {
+      console.warn('保存回到顶部按钮位置失败:', error);
+    }
+  }
+
+  function tryScrollToTopByTimeline() {
+    const t = document.getElementsByClassName('timeline-padding');
+    if (t && t[0]) {
+      try {
+        t[0].style.height = 0;
+        t[0].click();
+        return true;
+      } catch (error) {
+        console.warn('timeline-padding 回到顶部执行失败:', error);
+      }
+    }
+    return false;
+  }
+
+  function ensureBackToTopButton() {
+    if (!isTopicPageForBackToTop()) {
+      if (backToTopButtonEl) backToTopButtonEl.style.display = 'none';
+      return;
+    }
+
+    if (!backToTopButtonEl || !document.body.contains(backToTopButtonEl)) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'linuxdo-back-to-top';
+      btn.setAttribute('aria-label', '回到顶部');
+      btn.title = '回到顶部';
+      btn.innerHTML = /*html*/`
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 5l-7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M12 5l7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M12 5v14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      `;
+
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (suppressBackToTopClick) {
+          suppressBackToTopClick = false;
+          return;
+        }
+        if (!tryScrollToTopByTimeline()) {
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+      });
+
+      let dragging = false;
+      let startX = 0;
+      let startY = 0;
+      let startLeft = 0;
+      let startTop = 0;
+
+      const onPointerMove = (ev) => {
+        if (!dragging) return;
+        const dx = ev.clientX - startX;
+        const dy = ev.clientY - startY;
+        if (Math.abs(dx) + Math.abs(dy) > 3) suppressBackToTopClick = true;
+        applyBackToTopPosition(btn, { left: startLeft + dx, top: startTop + dy });
+      };
+
+      const stopDrag = () => {
+        if (!dragging) return;
+        dragging = false;
+        const left = Number.parseFloat(btn.style.left) || 0;
+        const top = Number.parseFloat(btn.style.top) || 0;
+        saveBackToTopPosition({ left, top });
+      };
+
+      btn.addEventListener('pointerdown', (ev) => {
+        if (ev.button !== 0) return;
+        dragging = true;
+        startX = ev.clientX;
+        startY = ev.clientY;
+        startLeft = Number.parseFloat(btn.style.left) || 0;
+        startTop = Number.parseFloat(btn.style.top) || 0;
+        btn.setPointerCapture(ev.pointerId);
+      });
+
+      btn.addEventListener('pointermove', onPointerMove);
+      btn.addEventListener('pointerup', (ev) => {
+        stopDrag();
+        try { btn.releasePointerCapture(ev.pointerId); } catch (_) { /* ignore */ }
+      });
+      btn.addEventListener('pointercancel', () => stopDrag());
+
+      window.addEventListener('resize', () => {
+        if (!backToTopButtonEl || backToTopButtonEl.style.display === 'none') return;
+        const left = Number.parseFloat(backToTopButtonEl.style.left) || 0;
+        const top = Number.parseFloat(backToTopButtonEl.style.top) || 0;
+        applyBackToTopPosition(backToTopButtonEl, { left, top });
+      });
+
+      document.body.appendChild(btn);
+      backToTopButtonEl = btn;
+
+      const saved = getBackToTopSavedPosition();
+      if (saved) {
+        applyBackToTopPosition(btn, saved);
+      } else {
+        const defaultPos = {
+          left: Math.max(8, window.innerWidth - 42 - 18),
+          top: Math.max(8, window.innerHeight - 42 - 90),
+        };
+        applyBackToTopPosition(btn, defaultPos);
+      }
+    }
+
+    backToTopButtonEl.style.display = 'inline-flex';
   }
 
   // #endregion
@@ -1826,7 +2067,7 @@
    * @description 清理两栏布局的增强 DOM，恢复为默认样式。
    */
   function cleanupTwoColumnLayout() {
-    document.documentElement.classList.remove('linuxdo-two-column-layout');
+    document.documentElement.classList.remove('linuxdo-two-column-layout', 'linuxdo-topic-waterfall');
     document.documentElement.style.removeProperty('--ld-topic-columns');
 
     document.querySelectorAll('.linuxdo-topic-meta').forEach((el) => el.remove());
@@ -1864,6 +2105,11 @@
 
     document.documentElement.classList.add('linuxdo-two-column-layout');
     document.documentElement.style.setProperty('--ld-topic-columns', String(columns));
+    if (CONFIG.TOPIC_LIST_WATERFALL) {
+      document.documentElement.classList.add('linuxdo-topic-waterfall');
+    } else {
+      document.documentElement.classList.remove('linuxdo-topic-waterfall');
+    }
 
     const topicListBodies = document.querySelectorAll('tbody.topic-list-body');
     if (!topicListBodies || topicListBodies.length === 0) return;
@@ -1994,6 +2240,19 @@
                   <span class="linuxdo-settings-unit">列</span>
                 </div>
               </div>
+
+              <div class="linuxdo-settings-separator"></div>
+
+              <div class="linuxdo-settings-item" id="topicListWaterfallRow" style="${topicListColumns > 0 ? '' : 'display:none;'}">
+                <div class="linuxdo-settings-item-text">
+                  <label class="linuxdo-settings-item-label" for="topicListWaterfall">瀑布流</label>
+                  <div class="linuxdo-settings-description">仅在分栏数大于 0 时显示/生效；开启后以瀑布流方式排列卡片</div>
+                </div>
+                <label class="linuxdo-settings-switch">
+                  <input type="checkbox" id="topicListWaterfall" ${CONFIG.TOPIC_LIST_WATERFALL ? 'checked' : ''}>
+                  <span class="linuxdo-settings-switch-slider"></span>
+                </label>
+              </div>
             </div>
           </section>
 
@@ -2075,6 +2334,26 @@
     const cancelBtn = dialog.querySelector('#cancelSettings');
     const saveBtn = dialog.querySelector('#saveSettings');
 
+    const twoColumnLayoutInput = dialog.querySelector('#twoColumnLayout');
+    const topicListWaterfallRow = dialog.querySelector('#topicListWaterfallRow');
+    const topicListWaterfallInput = dialog.querySelector('#topicListWaterfall');
+
+    const updateTopicListWaterfallVisibility = () => {
+      if (!twoColumnLayoutInput || !topicListWaterfallRow) return;
+      const parsed = Number.parseInt(String(twoColumnLayoutInput.value || '').trim(), 10);
+      const enabled = Number.isFinite(parsed) && parsed > 0;
+      topicListWaterfallRow.style.display = enabled ? '' : 'none';
+      if (!enabled && topicListWaterfallInput) {
+        topicListWaterfallInput.checked = false;
+      }
+    };
+
+    if (twoColumnLayoutInput && topicListWaterfallRow) {
+      twoColumnLayoutInput.addEventListener('input', updateTopicListWaterfallVisibility);
+      twoColumnLayoutInput.addEventListener('change', updateTopicListWaterfallVisibility);
+      updateTopicListWaterfallVisibility();
+    }
+
     const closeDialog = () => {
       if (typeof dialog.close === 'function') {
         dialog.setAttribute('closing', '');
@@ -2105,6 +2384,9 @@
       let twoColumnLayout = Number.parseInt(String(twoColumnLayoutRaw || '').trim(), 10);
       if (!Number.isFinite(twoColumnLayout) || twoColumnLayout <= 0) twoColumnLayout = 0;
       if (twoColumnLayout > 5) twoColumnLayout = 5;
+      let topicListWaterfall = false;
+      if (topicListWaterfallInput) topicListWaterfall = !!topicListWaterfallInput.checked;
+      if (twoColumnLayout <= 0) topicListWaterfall = false;
       const useAiForSummary = dialog.querySelector('#useAiForSummary').checked;
       const apiKey = dialog.querySelector('#apiKey').value.trim();
       const apiBaseUrl = dialog.querySelector('#apiBaseUrl').value.trim();
@@ -2114,6 +2396,7 @@
 
       setConfig('COMPACT_MODE', compactMode);
       setConfig('TWO_COLUMN_LAYOUT', twoColumnLayout);
+      setConfig('TOPIC_LIST_WATERFALL', topicListWaterfall);
       setConfig('USE_AI_FOR_SUMMARY', useAiForSummary);
       setConfig('API_KEY', apiKey);
       setConfig('API_BASE_URL', apiBaseUrl || DEFAULT_CONFIG.API_BASE_URL);
@@ -2200,6 +2483,9 @@
 
     // 顶部搜索框：历史复制内容
     ensureCopyHistoryTrigger();
+
+    // 话题页：回到顶部按钮
+    ensureBackToTopButton();
 
     const titleLinkElement = document.querySelector('h1[data-topic-id] a.fancy-title');
     const articleRootElement = document.querySelector('.cooked');
