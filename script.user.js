@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name          从linux do获取论坛文章数据与复制
 // @namespace     http://tampermonkey.net/
-// @version       0.15.11
+// @version       0.15.12
 // @description   从linux do论坛页面获取文章的板块、标题、链接、标签和内容总结，并在标题旁添加复制按钮。支持设置界面配置。
 // @author        @Loveyless https://github.com/Loveyless/linuxdo-share
 // @match         *://*.linux.do/*
@@ -70,7 +70,9 @@
     // 设置保存后关闭延迟 (毫秒)
     SETTINGS_CLOSE_DELAY_MS: 300,
     // Dialog 关闭动画时间 (毫秒)
-    DIALOG_CLOSE_ANIMATION_MS: 200
+    DIALOG_CLOSE_ANIMATION_MS: 200,
+    // 历史复制内容：存储空间不足时的保底条数
+    COPY_HISTORY_FALLBACK_LIMIT: 20
   };
 
   // #endregion
@@ -860,6 +862,205 @@
             margin: 0 6px 0 0;
             color: var(--ld-list-muted);
         }
+
+        /* 历史复制内容（搜索框右侧） */
+        .linuxdo-copy-history-trigger {
+            --ld-h-bg: #ffffff;
+            --ld-h-fg: #0f172a;
+            --ld-h-muted: #f1f5f9;
+            --ld-h-muted-fg: #64748b;
+            --ld-h-border: rgba(15, 23, 42, 0.12);
+            --ld-h-ring: rgba(59, 130, 246, 0.45);
+
+            appearance: none;
+            border: 1px solid var(--ld-h-border);
+            background: transparent;
+            color: var(--ld-h-muted-fg);
+            width: 32px;
+            height: 32px;
+            border-radius: 10px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            margin-left: 8px;
+            transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        html[style*="color-scheme: dark"] .linuxdo-copy-history-trigger {
+            --ld-h-bg: #0b1220;
+            --ld-h-fg: #e2e8f0;
+            --ld-h-muted: rgba(148, 163, 184, 0.12);
+            --ld-h-muted-fg: #94a3b8;
+            --ld-h-border: rgba(148, 163, 184, 0.18);
+            --ld-h-ring: rgba(59, 130, 246, 0.55);
+        }
+
+        .linuxdo-copy-history-trigger:hover {
+            background: var(--ld-h-muted);
+            color: var(--ld-h-fg);
+        }
+
+        .linuxdo-copy-history-trigger:focus-visible {
+            outline: none;
+            box-shadow: 0 0 0 3px var(--ld-h-ring);
+        }
+
+        .linuxdo-copy-history-trigger svg {
+            width: 16px;
+            height: 16px;
+            display: block;
+        }
+
+        .linuxdo-copy-history-popover {
+            --ld-h-bg: #ffffff;
+            --ld-h-fg: #0f172a;
+            --ld-h-muted: #f1f5f9;
+            --ld-h-muted-fg: #64748b;
+            --ld-h-border: rgba(15, 23, 42, 0.12);
+            --ld-h-ring: rgba(59, 130, 246, 0.18);
+
+            position: fixed;
+            z-index: 100000;
+            width: min(520px, calc(100vw - 24px));
+            max-height: min(70vh, 520px);
+            overflow: auto;
+            background: var(--ld-h-bg);
+            color: var(--ld-h-fg);
+            border: 1px solid var(--ld-h-border);
+            border-radius: 12px;
+            box-shadow: 0 24px 80px rgba(0, 0, 0, 0.28);
+            padding: 10px;
+            display: none;
+        }
+
+        html[style*="color-scheme: dark"] .linuxdo-copy-history-popover {
+            --ld-h-bg: #0b1220;
+            --ld-h-fg: #e2e8f0;
+            --ld-h-muted: rgba(148, 163, 184, 0.12);
+            --ld-h-muted-fg: #94a3b8;
+            --ld-h-border: rgba(148, 163, 184, 0.18);
+            --ld-h-ring: rgba(59, 130, 246, 0.24);
+            box-shadow: 0 24px 90px rgba(0, 0, 0, 0.52);
+        }
+
+        .linuxdo-copy-history-header {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 10px;
+            padding: 2px 2px 10px;
+            border-bottom: 1px solid var(--ld-h-border);
+            margin-bottom: 8px;
+        }
+
+        .linuxdo-copy-history-title {
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            color: var(--ld-h-muted-fg);
+        }
+
+        .linuxdo-copy-history-hint {
+            font-size: 12px;
+            color: var(--ld-h-muted-fg);
+            white-space: nowrap;
+        }
+
+        .linuxdo-copy-history-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .linuxdo-copy-history-item {
+            border: 1px solid var(--ld-h-border);
+            border-radius: 12px;
+            padding: 10px;
+            background: transparent;
+            transition: background 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        .linuxdo-copy-history-item:hover {
+            background: var(--ld-h-muted);
+            box-shadow: 0 0 0 3px var(--ld-h-ring);
+        }
+
+        .linuxdo-copy-history-item-top {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 10px;
+        }
+
+        .linuxdo-copy-history-item-text {
+            min-width: 0;
+            flex: 1;
+        }
+
+        .linuxdo-copy-history-item-title {
+            font-size: 13px;
+            font-weight: 600;
+            line-height: 1.35;
+            margin: 0;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .linuxdo-copy-history-item-snippet {
+            margin-top: 4px;
+            font-size: 12px;
+            color: var(--ld-h-muted-fg);
+            line-height: 1.4;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .linuxdo-copy-history-actions {
+            display: flex;
+            gap: 6px;
+            flex-shrink: 0;
+        }
+
+        .linuxdo-copy-history-btn {
+            appearance: none;
+            border: 1px solid var(--ld-h-border);
+            background: transparent;
+            color: var(--ld-h-fg);
+            border-radius: 10px;
+            padding: 6px 10px;
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.15s ease, box-shadow 0.15s ease, transform 0.05s ease;
+            white-space: nowrap;
+        }
+
+        .linuxdo-copy-history-btn:hover {
+            background: var(--ld-h-bg);
+            box-shadow: 0 0 0 3px var(--ld-h-ring);
+        }
+
+        .linuxdo-copy-history-btn:active {
+            transform: translateY(1px);
+        }
+
+        .linuxdo-copy-history-btn:focus-visible {
+            outline: none;
+            box-shadow: 0 0 0 3px var(--ld-h-ring);
+        }
+
+        .linuxdo-copy-history-empty {
+            padding: 18px 8px;
+            text-align: center;
+            font-size: 12px;
+            color: var(--ld-h-muted-fg);
+        }
     `;
 
   /**
@@ -935,6 +1136,287 @@
 
     return formattedText.replace(/\n\n+/g, '\n\n').trim();
   }
+
+  // #region 历史复制内容
+  // ==========================================================
+
+  const COPY_HISTORY_STORAGE_KEY = 'COPY_HISTORY_V1';
+  let copyHistoryPopoverEl = null;
+  let copyHistoryHideTimer = null;
+  let copyHistoryGlobalListenersBound = false;
+
+  /**
+   * @description 读取历史复制内容列表。
+   * @returns {Array<{id: string, title: string, summary: string, link: string, text: string, createdAt: number}>}
+   */
+  function getCopyHistoryItems() {
+    const raw = GM_getValue(COPY_HISTORY_STORAGE_KEY, []);
+    if (!Array.isArray(raw)) return [];
+    return raw
+      .filter((item) => item && typeof item === 'object')
+      .map((item) => ({
+        id: String(item.id || ''),
+        title: String(item.title || ''),
+        summary: String(item.summary || ''),
+        link: String(item.link || ''),
+        text: String(item.text || ''),
+        createdAt: Number(item.createdAt || 0),
+      }))
+      .filter((item) => item.id && item.text);
+  }
+
+  /**
+   * @description 尝试持久化历史；若存储空间不足，则回退保留最近 N 条。
+   * @param {Array} items - 历史列表。
+   * @returns {Array} 实际保存的历史列表。
+   */
+  function persistCopyHistoryItems(items) {
+    try {
+      GM_setValue(COPY_HISTORY_STORAGE_KEY, items);
+      return items;
+    } catch (error) {
+      console.warn('保存历史复制内容失败，尝试回退条数：', error);
+
+      let trimmed = items.slice(0, SCRIPT_CONSTANTS.COPY_HISTORY_FALLBACK_LIMIT);
+      while (trimmed.length > 0) {
+        try {
+          GM_setValue(COPY_HISTORY_STORAGE_KEY, trimmed);
+          return trimmed;
+        } catch (e) {
+          trimmed = trimmed.slice(0, trimmed.length - 1);
+        }
+      }
+
+      try {
+        GM_setValue(COPY_HISTORY_STORAGE_KEY, []);
+      } catch (_) {
+        // ignore
+      }
+      return [];
+    }
+  }
+
+  /**
+   * @description 写入一条历史记录（新记录置顶，按链接去重）。
+   * @param {object} param - 参数对象。
+   * @param {object} param.articleData - 文章数据。
+   * @param {string} param.copiedText - 最终复制文本。
+   */
+  function addCopyHistoryItem({ articleData, copiedText }) {
+    const title = String((articleData && articleData.title) || '').trim();
+    const link = String((articleData && articleData.link) || '').trim();
+    const summary = String(stripAiSummaryPrefix((articleData && articleData.summary) || '')).trim();
+    const text = String(copiedText || '').trim();
+    if (!text) return;
+
+    const id = `${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+    const nextItem = { id, title, summary, link, text, createdAt: Date.now() };
+
+    const existing = getCopyHistoryItems();
+    const deduped = existing.filter((it) => !(link && it.link === link));
+    const next = [nextItem, ...deduped];
+    const saved = persistCopyHistoryItems(next);
+
+    if (copyHistoryPopoverEl && copyHistoryPopoverEl.style.display !== 'none') {
+      renderCopyHistoryPopover(saved);
+    }
+  }
+
+  function ensureCopyHistoryPopover() {
+    if (copyHistoryPopoverEl && document.body.contains(copyHistoryPopoverEl)) return copyHistoryPopoverEl;
+
+    const popover = document.createElement('div');
+    popover.className = 'linuxdo-copy-history-popover';
+    popover.setAttribute('role', 'menu');
+    popover.setAttribute('aria-label', '历史复制内容');
+    document.body.appendChild(popover);
+
+    popover.addEventListener('mouseenter', () => {
+      if (copyHistoryHideTimer) {
+        clearTimeout(copyHistoryHideTimer);
+        copyHistoryHideTimer = null;
+      }
+    });
+
+    popover.addEventListener('mouseleave', () => {
+      scheduleHideCopyHistoryPopover();
+    });
+
+    popover.addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-action][data-id]');
+      if (!btn) return;
+      e.preventDefault();
+      e.stopPropagation();
+
+      const action = btn.getAttribute('data-action');
+      const id = btn.getAttribute('data-id');
+      const items = getCopyHistoryItems();
+      const item = items.find((x) => x.id === id);
+      if (!item) return;
+
+      if (action === 'copy') {
+        copyTextToClipboard({ element: btn, text: item.text });
+      } else if (action === 'open') {
+        if (item.link) window.open(item.link, '_blank', 'noopener,noreferrer');
+      }
+    });
+
+    window.addEventListener('scroll', () => hideCopyHistoryPopover(), true);
+    window.addEventListener('resize', () => hideCopyHistoryPopover(), true);
+
+    copyHistoryPopoverEl = popover;
+    return popover;
+  }
+
+  function scheduleHideCopyHistoryPopover() {
+    if (copyHistoryHideTimer) clearTimeout(copyHistoryHideTimer);
+    copyHistoryHideTimer = setTimeout(() => hideCopyHistoryPopover(), 150);
+  }
+
+  function hideCopyHistoryPopover() {
+    if (!copyHistoryPopoverEl) return;
+    copyHistoryPopoverEl.style.display = 'none';
+  }
+
+  function positionCopyHistoryPopover(triggerEl) {
+    if (!copyHistoryPopoverEl || !triggerEl) return;
+
+    const rect = triggerEl.getBoundingClientRect();
+    const popoverRect = copyHistoryPopoverEl.getBoundingClientRect();
+
+    const gap = 8;
+    let top = rect.bottom + gap;
+    let left = rect.right - popoverRect.width;
+
+    const maxLeft = window.innerWidth - popoverRect.width - 12;
+    const minLeft = 12;
+    if (left > maxLeft) left = maxLeft;
+    if (left < minLeft) left = minLeft;
+
+    const maxTop = window.innerHeight - popoverRect.height - 12;
+    if (top > maxTop) top = Math.max(12, rect.top - popoverRect.height - gap);
+
+    copyHistoryPopoverEl.style.top = `${Math.round(top)}px`;
+    copyHistoryPopoverEl.style.left = `${Math.round(left)}px`;
+  }
+
+  function renderCopyHistoryPopover(items) {
+    const popover = ensureCopyHistoryPopover();
+    const list = Array.isArray(items) ? items : getCopyHistoryItems();
+
+    const header = `
+      <div class="linuxdo-copy-history-header">
+        <div class="linuxdo-copy-history-title">历史复制</div>
+        <div class="linuxdo-copy-history-hint">点击复制 / 打开链接</div>
+      </div>
+    `;
+
+    if (!list || list.length === 0) {
+      popover.innerHTML = header + `<div class="linuxdo-copy-history-empty">暂无历史记录</div>`;
+      return;
+    }
+
+    const html = list
+      .slice(0, Math.max(list.length, 0))
+      .map((item) => {
+        const safeTitle = escapeHtml(item.title || '（无标题）');
+        const snippet = escapeHtml((item.summary || item.text || '').trim());
+        return `
+          <div class="linuxdo-copy-history-item" role="menuitem">
+            <div class="linuxdo-copy-history-item-top">
+              <div class="linuxdo-copy-history-item-text">
+                <div class="linuxdo-copy-history-item-title">${safeTitle}</div>
+                <div class="linuxdo-copy-history-item-snippet">${snippet}</div>
+              </div>
+              <div class="linuxdo-copy-history-actions">
+                <button type="button" class="linuxdo-copy-history-btn" data-action="copy" data-id="${escapeHtml(item.id)}">再次复制</button>
+                <button type="button" class="linuxdo-copy-history-btn" data-action="open" data-id="${escapeHtml(item.id)}">打开链接</button>
+              </div>
+            </div>
+          </div>
+        `;
+      })
+      .join('');
+
+    popover.innerHTML = header + `<div class="linuxdo-copy-history-list">${html}</div>`;
+  }
+
+  function findHeaderSearchActionsContainer() {
+    const input = document.getElementById('header-search-input');
+    if (input) {
+      const searchInput = input.closest('.search-input') || input.closest('.search-input-wrapper');
+      const searching = searchInput ? searchInput.querySelector('.searching') : null;
+      if (searching) return searching;
+    }
+    return document.querySelector('.floating-search-input-wrapper .searching');
+  }
+
+  /**
+   * @description 在搜索框右侧注入历史按钮（hover 展开）。
+   */
+  function ensureCopyHistoryTrigger() {
+    const container = findHeaderSearchActionsContainer();
+    if (!container) return;
+    if (container.querySelector('.linuxdo-copy-history-trigger')) return;
+
+    const trigger = document.createElement('button');
+    trigger.type = 'button';
+    trigger.className = 'linuxdo-copy-history-trigger';
+    trigger.title = '历史复制内容';
+    trigger.setAttribute('aria-label', '历史复制内容');
+    trigger.innerHTML = /*html*/`
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+        <path d="M12 8v4l3 2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M3 12a9 9 0 1 0 3-6.7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <path d="M3 3v4h4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    `;
+
+    const popover = ensureCopyHistoryPopover();
+
+    trigger.addEventListener('mouseenter', () => {
+      if (copyHistoryHideTimer) {
+        clearTimeout(copyHistoryHideTimer);
+        copyHistoryHideTimer = null;
+      }
+      renderCopyHistoryPopover();
+      popover.style.display = 'block';
+      positionCopyHistoryPopover(trigger);
+    });
+
+    trigger.addEventListener('mouseleave', () => {
+      scheduleHideCopyHistoryPopover();
+    });
+
+    trigger.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const isOpen = popover.style.display !== 'none';
+      if (isOpen) {
+        hideCopyHistoryPopover();
+      } else {
+        renderCopyHistoryPopover();
+        popover.style.display = 'block';
+        positionCopyHistoryPopover(trigger);
+      }
+    });
+
+    if (!copyHistoryGlobalListenersBound) {
+      copyHistoryGlobalListenersBound = true;
+      document.addEventListener('click', (e) => {
+        if (!copyHistoryPopoverEl) return;
+        if (copyHistoryPopoverEl.style.display === 'none') return;
+        const anyTrigger = document.querySelector('.linuxdo-copy-history-trigger');
+        if (anyTrigger && (e.target === anyTrigger || anyTrigger.contains(e.target))) return;
+        if (copyHistoryPopoverEl.contains(e.target)) return;
+        hideCopyHistoryPopover();
+      }, true);
+    }
+
+    container.appendChild(trigger);
+  }
+
+  // #endregion
 
   /**
    * @description 调用 AI 以获取内容总结 (OpenAI Compatible 格式)。
@@ -1324,7 +1806,9 @@
         const articleData = await getArticleData(currentTitleElement, currentArticleRootElement);
         console.log('获取到的文章数据:', articleData);
 
-        copyTextToClipboard({ element: copyButton, text: formatCopiedText(articleData) });
+        const formattedText = formatCopiedText(articleData);
+        addCopyHistoryItem({ articleData, copiedText: formattedText });
+        copyTextToClipboard({ element: copyButton, text: formattedText });
       } catch (error) {
         handleCopyError({ element: copyButton, error });
       } finally {
@@ -1713,6 +2197,9 @@
 
     // 主题列表布局（两栏）
     applyTwoColumnLayoutToTopicLists();
+
+    // 顶部搜索框：历史复制内容
+    ensureCopyHistoryTrigger();
 
     const titleLinkElement = document.querySelector('h1[data-topic-id] a.fancy-title');
     const articleRootElement = document.querySelector('.cooked');
