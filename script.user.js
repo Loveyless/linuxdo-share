@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name          从linux do获取论坛文章数据与复制
 // @namespace     http://tampermonkey.net/
-// @version       0.15.5
+// @version       0.15.6
 // @description   从linux do论坛页面获取文章的板块、标题、链接、标签和内容总结，并在标题旁添加复制按钮。支持设置界面配置。
 // @author        @Loveyless https://github.com/Loveyless/linuxdo-share
 // @match         *://*.linux.do/*
@@ -27,6 +27,8 @@
    * @description 默认配置项，当油猴存储中没有对应值时使用。
    */
   const DEFAULT_CONFIG = {
+    // 是否启用简洁模式：标题+摘要合并一段，隐藏作者/板块/标签，链接单独一行
+    COMPACT_MODE: false,
     // 是否启用 AI 进行内容总结
     USE_AI_FOR_SUMMARY: false,
     // AI Key，如果 USE_AI_FOR_SUMMARY 为 true，则需要填写此项
@@ -281,267 +283,249 @@
             display: none; /* Loading 时隐藏对勾和叉号 */
         }
 
-        /* 设置界面样式 - iOS 风格 */
+        /* 设置界面样式 - shadcn 风格（简约） */
         .linuxdo-settings-dialog {
+            --ld-bg: #ffffff;
+            --ld-fg: #0f172a;
+            --ld-muted: #f1f5f9;
+            --ld-muted-fg: #64748b;
+            --ld-card: #ffffff;
+            --ld-border: rgba(15, 23, 42, 0.12);
+            --ld-ring: rgba(59, 130, 246, 0.45);
+            --ld-primary: #0f172a;
+            --ld-primary-fg: #ffffff;
+
             border: none;
-            border-radius: 14px;
             padding: 0;
-            width: 90%;
-            max-width: 680px;
-            max-height: 85vh;
-            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
-            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+            width: min(720px, calc(100vw - 24px));
+            max-height: min(85vh, 760px);
             background: transparent;
-            overflow: hidden;
+            overflow: visible;
+            font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji";
+        }
+
+        .linuxdo-settings-dialog,
+        .linuxdo-settings-dialog * {
+            box-sizing: border-box;
+        }
+
+        html[style*="color-scheme: dark"] .linuxdo-settings-dialog {
+            --ld-bg: #0b1220;
+            --ld-fg: #e2e8f0;
+            --ld-muted: rgba(148, 163, 184, 0.12);
+            --ld-muted-fg: #94a3b8;
+            --ld-card: #0f172a;
+            --ld-border: rgba(148, 163, 184, 0.18);
+            --ld-ring: rgba(59, 130, 246, 0.55);
+            --ld-primary: #e2e8f0;
+            --ld-primary-fg: #0b1220;
         }
 
         .linuxdo-settings-dialog::backdrop {
-            background: rgba(0, 0, 0, 0.4);
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
+            background: rgba(2, 6, 23, 0.65);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
         }
 
         .linuxdo-settings-content {
-            background: #f2f2f7;
-            border-radius: 14px;
+            background: var(--ld-bg);
+            color: var(--ld-fg);
+            border: 1px solid var(--ld-border);
+            border-radius: 12px;
+            box-shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
             display: flex;
             flex-direction: column;
-            max-height: 85vh;
+            max-height: inherit;
             overflow: hidden;
         }
 
-        html[style*="color-scheme: dark"] .linuxdo-settings-content {
-            background: #1c1c1e;
+        .linuxdo-settings-dialog[closing] .linuxdo-settings-content {
+            animation: ldDialogOut 0.16s ease-in forwards;
         }
 
-        .linuxdo-settings-dialog[closing] {
-            animation: iosSlideOut 0.2s ease-in forwards;
+        @keyframes ldDialogOut {
+            to { opacity: 0; transform: translateY(6px) scale(0.985); }
         }
 
-        @keyframes iosSlideOut {
-            to { opacity: 0; transform: scale(0.95); }
-        }
-
-        /* 顶部导航栏 */
         .linuxdo-settings-header {
             display: flex;
+            align-items: flex-start;
             justify-content: space-between;
-            align-items: center;
-            padding: 16px 20px;
-            background: #f2f2f7;
-            border-bottom: 0.5px solid rgba(60, 60, 67, 0.12);
+            gap: 12px;
+            padding: 16px 18px;
+            border-bottom: 1px solid var(--ld-border);
+            background: var(--ld-bg);
             flex-shrink: 0;
         }
 
-        html[style*="color-scheme: dark"] .linuxdo-settings-header {
-            background: #1c1c1e;
-            border-bottom-color: rgba(84, 84, 88, 0.65);
-        }
-
         .linuxdo-settings-title {
-            font-size: 17px;
+            font-size: 16px;
             font-weight: 600;
+            line-height: 1.25;
             margin: 0;
-            color: #000;
-            letter-spacing: -0.4px;
+            letter-spacing: -0.01em;
         }
 
-        html[style*="color-scheme: dark"] .linuxdo-settings-title {
-            color: #fff;
+        .linuxdo-settings-subtitle {
+            margin: 6px 0 0;
+            font-size: 12px;
+            color: var(--ld-muted-fg);
+            line-height: 1.3;
         }
 
         .linuxdo-settings-close {
-            background: rgba(120, 120, 128, 0.12);
-            border: none;
-            font-size: 15px;
-            cursor: pointer;
-            color: #8e8e93;
-            padding: 0;
-            width: 30px;
-            height: 30px;
-            display: flex;
+            appearance: none;
+            border: 1px solid var(--ld-border);
+            background: transparent;
+            color: var(--ld-muted-fg);
+            border-radius: 10px;
+            width: 34px;
+            height: 34px;
+            display: inline-flex;
             align-items: center;
             justify-content: center;
-            border-radius: 50%;
-            transition: all 0.15s ease;
+            cursor: pointer;
+            transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+            flex-shrink: 0;
+            line-height: 1;
         }
 
         .linuxdo-settings-close:hover {
-            background: rgba(120, 120, 128, 0.2);
+            background: var(--ld-muted);
+            color: var(--ld-fg);
         }
 
-        html[style*="color-scheme: dark"] .linuxdo-settings-close {
-            background: rgba(120, 120, 128, 0.32);
-            color: #98989f;
+        .linuxdo-settings-close:focus-visible {
+            outline: none;
+            box-shadow: 0 0 0 3px var(--ld-ring);
         }
 
-        /* 表单滚动区域 */
         .linuxdo-settings-form {
-            padding: 20px;
+            padding: 18px;
             overflow-y: auto;
             flex: 1;
         }
 
-        /* iOS 分组列表 */
-        .linuxdo-settings-group {
-            background: #fff;
-            border-radius: 10px;
-            overflow: hidden;
-            margin-bottom: 20px;
+        .linuxdo-settings-section + .linuxdo-settings-section {
+            margin-top: 18px;
         }
 
-        html[style*="color-scheme: dark"] .linuxdo-settings-group {
-            background: #2c2c2e;
+        .linuxdo-settings-section-header {
+            margin-bottom: 10px;
         }
 
-        .linuxdo-settings-group-title {
-            font-size: 13px;
-            font-weight: 400;
-            color: #6d6d72;
+        .linuxdo-settings-section-title {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--ld-muted-fg);
             text-transform: uppercase;
-            letter-spacing: -0.08px;
-            padding: 0 16px 8px;
-            margin-bottom: 0;
+            letter-spacing: 0.06em;
+            margin: 0 0 4px;
         }
 
-        html[style*="color-scheme: dark"] .linuxdo-settings-group-title {
-            color: #8e8e93;
+        .linuxdo-settings-section-desc {
+            margin: 0;
+            font-size: 12px;
+            color: var(--ld-muted-fg);
         }
 
-        /* iOS 行样式 */
-        .linuxdo-settings-row {
+        .linuxdo-settings-card {
+            border: 1px solid var(--ld-border);
+            border-radius: 12px;
+            background: var(--ld-card);
+            padding: 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .linuxdo-settings-item {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 12px 16px;
-            min-height: 44px;
-            border-bottom: 0.5px solid rgba(60, 60, 67, 0.12);
-            box-sizing: border-box;
+            gap: 14px;
         }
 
-        .linuxdo-settings-row:last-child {
-            border-bottom: none;
-        }
-
-        html[style*="color-scheme: dark"] .linuxdo-settings-row {
-            border-bottom-color: rgba(84, 84, 88, 0.65);
-        }
-
-        .linuxdo-settings-row-label {
-            font-size: 17px;
-            color: #000;
-            flex-shrink: 0;
-        }
-
-        html[style*="color-scheme: dark"] .linuxdo-settings-row-label {
-            color: #fff;
-        }
-
-        .linuxdo-settings-row-value {
+        .linuxdo-settings-item-text {
+            min-width: 0;
             flex: 1;
-            margin-left: 12px;
         }
 
-        /* iOS 输入框 */
-        .linuxdo-settings-input {
-            width: 100%;
-            padding: 11px 0;
-            border: none;
-            background: transparent;
-            font-size: 17px;
-            font-family: inherit;
-            color: #8e8e93;
-            text-align: right;
-            outline: none;
-            box-sizing: border-box;
-        }
-
-        .linuxdo-settings-input::placeholder {
-            color: #c7c7cc;
-        }
-
-        html[style*="color-scheme: dark"] .linuxdo-settings-input {
-            color: #98989f;
-        }
-
-        html[style*="color-scheme: dark"] .linuxdo-settings-input::placeholder {
-            color: #636366;
-        }
-
-        /* 垂直布局的输入字段 */
-        .linuxdo-settings-field-vertical {
-            padding: 12px 16px;
-            border-bottom: 0.5px solid rgba(60, 60, 67, 0.12);
-        }
-
-        .linuxdo-settings-field-vertical:last-child {
-            border-bottom: none;
-        }
-
-        html[style*="color-scheme: dark"] .linuxdo-settings-field-vertical {
-            border-bottom-color: rgba(84, 84, 88, 0.65);
-        }
-
-        .linuxdo-settings-field-vertical .linuxdo-settings-label {
-            font-size: 13px;
-            font-weight: 500;
-            color: #6d6d72;
-            margin-bottom: 8px;
+        .linuxdo-settings-item-label {
             display: block;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--ld-fg);
+            margin: 0;
         }
 
-        html[style*="color-scheme: dark"] .linuxdo-settings-field-vertical .linuxdo-settings-label {
-            color: #8e8e93;
+        .linuxdo-settings-description {
+            font-size: 12px;
+            color: var(--ld-muted-fg);
+            margin-top: 6px;
+            line-height: 1.4;
         }
 
-        .linuxdo-settings-field-vertical .linuxdo-settings-input {
-            text-align: left;
-            padding: 10px 12px;
-            background: rgba(120, 120, 128, 0.08);
-            border-radius: 8px;
-            font-size: 15px;
+        .linuxdo-settings-separator {
+            height: 1px;
+            width: 100%;
+            background: var(--ld-border);
         }
 
-        html[style*="color-scheme: dark"] .linuxdo-settings-field-vertical .linuxdo-settings-input {
-            background: rgba(120, 120, 128, 0.2);
-            color: #fff;
+        .linuxdo-settings-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
         }
 
-        /* 文本域 */
+        .linuxdo-settings-field {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .linuxdo-settings-label {
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--ld-fg);
+        }
+
+        .linuxdo-settings-input,
         .linuxdo-settings-textarea {
             width: 100%;
+            border: 1px solid var(--ld-border);
+            background: var(--ld-bg);
+            color: var(--ld-fg);
+            border-radius: 10px;
             padding: 10px 12px;
-            border: none;
-            background: rgba(120, 120, 128, 0.08);
-            border-radius: 8px;
-            font-size: 15px;
-            font-family: inherit;
-            color: #000;
-            resize: vertical;
-            min-height: 80px;
+            font-size: 13px;
             line-height: 1.4;
+            font-family: inherit;
             outline: none;
-            box-sizing: border-box;
+            transition: box-shadow 0.15s ease, border-color 0.15s ease, background 0.15s ease;
         }
 
-        html[style*="color-scheme: dark"] .linuxdo-settings-textarea {
-            background: rgba(120, 120, 128, 0.2);
-            color: #fff;
-        }
-
+        .linuxdo-settings-input::placeholder,
         .linuxdo-settings-textarea::placeholder {
-            color: #c7c7cc;
+            color: var(--ld-muted-fg);
         }
 
-        html[style*="color-scheme: dark"] .linuxdo-settings-textarea::placeholder {
-            color: #636366;
+        .linuxdo-settings-input:focus-visible,
+        .linuxdo-settings-textarea:focus-visible {
+            box-shadow: 0 0 0 3px var(--ld-ring);
+            border-color: rgba(59, 130, 246, 0.65);
         }
 
-        /* iOS 开关 */
+        .linuxdo-settings-textarea {
+            resize: vertical;
+            min-height: 90px;
+        }
+
+        /* Switch */
         .linuxdo-settings-switch {
             position: relative;
-            width: 51px;
-            height: 31px;
+            width: 44px;
+            height: 24px;
             flex-shrink: 0;
         }
 
@@ -553,136 +537,106 @@
 
         .linuxdo-settings-switch-slider {
             position: absolute;
+            inset: 0;
+            border-radius: 999px;
+            border: 1px solid var(--ld-border);
+            background: var(--ld-muted);
             cursor: pointer;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background-color: #e9e9eb;
-            transition: 0.25s ease;
-            border-radius: 31px;
-        }
-
-        html[style*="color-scheme: dark"] .linuxdo-settings-switch-slider {
-            background-color: #39393d;
+            transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
         }
 
         .linuxdo-settings-switch-slider:before {
             position: absolute;
             content: "";
-            height: 27px;
-            width: 27px;
+            top: 2px;
             left: 2px;
-            bottom: 2px;
-            background-color: white;
-            transition: 0.25s ease;
-            border-radius: 50%;
-            box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15), 0 1px 1px rgba(0, 0, 0, 0.06);
+            width: 20px;
+            height: 20px;
+            border-radius: 999px;
+            background: var(--ld-bg);
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
+            transition: transform 0.15s ease, background 0.15s ease;
         }
 
         .linuxdo-settings-switch input:checked + .linuxdo-settings-switch-slider {
-            background-color: #34c759;
+            background: var(--ld-primary);
+            border-color: var(--ld-primary);
         }
 
         .linuxdo-settings-switch input:checked + .linuxdo-settings-switch-slider:before {
             transform: translateX(20px);
+            background: var(--ld-primary-fg);
         }
 
-        /* 描述文字 */
-        .linuxdo-settings-description {
-            font-size: 13px;
-            color: #6d6d72;
-            margin-top: 6px;
-            line-height: 1.35;
+        .linuxdo-settings-switch input:focus-visible + .linuxdo-settings-switch-slider {
+            box-shadow: 0 0 0 3px var(--ld-ring);
         }
 
-        html[style*="color-scheme: dark"] .linuxdo-settings-description {
-            color: #8e8e93;
-        }
-
-        .linuxdo-settings-group-footer {
-            font-size: 13px;
-            color: #6d6d72;
-            padding: 8px 16px 0;
-            line-height: 1.35;
-        }
-
-        html[style*="color-scheme: dark"] .linuxdo-settings-group-footer {
-            color: #8e8e93;
-        }
-
-        /* 底部按钮区域 - 固定在底部 */
         .linuxdo-settings-footer {
             display: flex;
-            gap: 12px;
-            padding: 16px 20px;
-            padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
-            background: #f2f2f7;
-            border-top: 0.5px solid rgba(60, 60, 67, 0.12);
+            gap: 10px;
+            padding: 14px 18px;
+            padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+            border-top: 1px solid var(--ld-border);
+            background: var(--ld-bg);
             flex-shrink: 0;
-        }
-
-        html[style*="color-scheme: dark"] .linuxdo-settings-footer {
-            background: #1c1c1e;
-            border-top-color: rgba(84, 84, 88, 0.65);
         }
 
         .linuxdo-settings-button {
             flex: 1;
-            padding: 14px 20px;
-            border: none;
+            padding: 10px 14px;
             border-radius: 10px;
-            background: #fff;
-            color: #007aff;
+            border: 1px solid var(--ld-border);
+            background: transparent;
+            color: var(--ld-fg);
             cursor: pointer;
-            font-size: 17px;
-            font-weight: 400;
+            font-size: 13px;
+            font-weight: 500;
             font-family: inherit;
-            transition: all 0.15s ease;
+            transition: background 0.15s ease, box-shadow 0.15s ease, transform 0.05s ease;
+        }
+
+        .linuxdo-settings-button:hover {
+            background: var(--ld-muted);
         }
 
         .linuxdo-settings-button:active {
-            background: #e5e5ea;
+            transform: translateY(1px);
         }
 
-        html[style*="color-scheme: dark"] .linuxdo-settings-button {
-            background: #2c2c2e;
-            color: #0a84ff;
-        }
-
-        html[style*="color-scheme: dark"] .linuxdo-settings-button:active {
-            background: #3a3a3c;
+        .linuxdo-settings-button:focus-visible {
+            outline: none;
+            box-shadow: 0 0 0 3px var(--ld-ring);
         }
 
         .linuxdo-settings-button.primary {
-            background: #007aff;
-            color: white;
-            font-weight: 600;
+            background: var(--ld-primary);
+            border-color: var(--ld-primary);
+            color: var(--ld-primary-fg);
         }
 
-        .linuxdo-settings-button.primary:active {
-            background: #0066d6;
+        .linuxdo-settings-button.primary:hover {
+            filter: brightness(0.98);
         }
 
-        html[style*="color-scheme: dark"] .linuxdo-settings-button.primary {
-            background: #0a84ff;
-        }
-
-        html[style*="color-scheme: dark"] .linuxdo-settings-button.primary:active {
-            background: #0077e6;
-        }
-
-        /* 响应式 */
-        @media (max-width: 500px) {
+        @media (max-width: 520px) {
             .linuxdo-settings-dialog {
-                width: 100%;
-                max-width: 100%;
-                max-height: 100vh;
-                border-radius: 0;
+                width: calc(100vw - 16px);
+                max-height: 92vh;
             }
-            .linuxdo-settings-content {
-                border-radius: 0;
-                max-height: 100vh;
+
+            .linuxdo-settings-form {
+                padding: 14px;
+            }
+
+            .linuxdo-settings-header,
+            .linuxdo-settings-footer {
+                padding-left: 14px;
+                padding-right: 14px;
+            }
+
+            .linuxdo-settings-grid {
+                grid-template-columns: 1fr;
             }
         }
     `;
@@ -716,6 +670,49 @@
     const div = document.createElement('div');
     div.textContent = str;
     return div.innerHTML;
+  }
+
+  /**
+   * @description 将文本规整为单行（用于简洁模式输出）。
+   * @param {string} text - 原始文本。
+   * @returns {string} 单行文本。
+   */
+  function normalizeToSingleLine(text) {
+    return (text || '')
+      .replace(/\r\n/g, '\n')
+      .replace(/\n+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  /**
+   * @description 去除 AI 总结前缀，输出更干净。
+   * @param {string} summary - 总结文本。
+   * @returns {string} 去前缀后的总结文本。
+   */
+  function stripAiSummaryPrefix(summary) {
+    return (summary || '').replace(/^\[AI\s*总结\]\s*:?\s*/i, '');
+  }
+
+  /**
+   * @description 根据配置格式化复制内容。
+   * @param {object} articleData - 文章数据。
+   * @returns {string} 最终要复制的文本。
+   */
+  function formatCopiedText(articleData) {
+    if (CONFIG.COMPACT_MODE) {
+      const title = normalizeToSingleLine(articleData && articleData.title);
+      const summary = normalizeToSingleLine(stripAiSummaryPrefix(articleData && articleData.summary));
+      const combined = title && summary ? `${title}：${summary}` : (title || summary);
+      return [combined, articleData && articleData.link].filter(Boolean).join('\n').trim();
+    }
+
+    const template = CONFIG.ARTICLE_COPY_TEMPLATE || DEFAULT_CONFIG.ARTICLE_COPY_TEMPLATE;
+    let formattedText = String(template).replace(/{{(\w+)}}/g, (match, key) => {
+      return articleData[key] !== undefined ? articleData[key] : match;
+    });
+
+    return formattedText.replace(/\n\n+/g, '\n\n').trim();
   }
 
   /**
@@ -1106,12 +1103,7 @@
         const articleData = await getArticleData(currentTitleElement, currentArticleRootElement);
         console.log('获取到的文章数据:', articleData);
 
-        let formattedText = CONFIG.ARTICLE_COPY_TEMPLATE.replace(/{{(\w+)}}/g, (match, key) => {
-          return articleData[key] !== undefined ? articleData[key] : match;
-        });
-        formattedText = formattedText.replace(/\n\n+/g, '\n\n').trim();
-
-        copyTextToClipboard({ element: copyButton, text: formattedText });
+        copyTextToClipboard({ element: copyButton, text: formatCopiedText(articleData) });
       } catch (error) {
         handleCopyError({ element: copyButton, error });
       } finally {
@@ -1136,59 +1128,90 @@
     dialog.innerHTML = `
       <div class="linuxdo-settings-content">
         <div class="linuxdo-settings-header">
-          <h2 class="linuxdo-settings-title">设置</h2>
-          <button class="linuxdo-settings-close" type="button">&times;</button>
+          <div>
+            <h2 class="linuxdo-settings-title">设置</h2>
+            <p class="linuxdo-settings-subtitle">Linux do 分享助手</p>
+          </div>
+          <button class="linuxdo-settings-close" type="button" aria-label="关闭">×</button>
         </div>
         <form class="linuxdo-settings-form" method="dialog">
-          <!-- AI 总结开关 -->
-          <div class="linuxdo-settings-group">
-            <div class="linuxdo-settings-row">
-              <span class="linuxdo-settings-row-label">启用 AI 总结</span>
-              <label class="linuxdo-settings-switch">
-                <input type="checkbox" id="useAiForSummary" ${CONFIG.USE_AI_FOR_SUMMARY ? 'checked' : ''}>
-                <span class="linuxdo-settings-switch-slider"></span>
-              </label>
+          <section class="linuxdo-settings-section">
+            <div class="linuxdo-settings-section-header">
+              <h3 class="linuxdo-settings-section-title">复制内容</h3>
+              <p class="linuxdo-settings-section-desc">控制复制到剪贴板的格式与密度</p>
             </div>
-          </div>
-          <p class="linuxdo-settings-group-footer">开启后将使用 AI 对文章内容进行智能总结</p>
+            <div class="linuxdo-settings-card">
+              <div class="linuxdo-settings-item">
+                <div class="linuxdo-settings-item-text">
+                  <label class="linuxdo-settings-item-label" for="compactMode">简洁模式</label>
+                  <div class="linuxdo-settings-description">开启后：标题与摘要合并为一段；隐藏作者/板块/标签；链接单独一行且无空行</div>
+                </div>
+                <label class="linuxdo-settings-switch">
+                  <input type="checkbox" id="compactMode" ${CONFIG.COMPACT_MODE ? 'checked' : ''}>
+                  <span class="linuxdo-settings-switch-slider"></span>
+                </label>
+              </div>
+            </div>
+          </section>
 
-          <!-- API 配置 -->
-          <p class="linuxdo-settings-group-title" style="margin-top: 24px;">API 配置</p>
-          <div class="linuxdo-settings-group">
-            <div class="linuxdo-settings-row">
-              <span class="linuxdo-settings-row-label">API Key</span>
-              <div class="linuxdo-settings-row-value">
-                <input type="password" id="apiKey" class="linuxdo-settings-input" value="${escapeHtml(CONFIG.API_KEY)}" placeholder="输入 API Key">
+          <section class="linuxdo-settings-section">
+            <div class="linuxdo-settings-section-header">
+              <h3 class="linuxdo-settings-section-title">AI 总结</h3>
+              <p class="linuxdo-settings-section-desc">可选：使用 OpenAI Compatible 接口</p>
+            </div>
+            <div class="linuxdo-settings-card">
+              <div class="linuxdo-settings-item">
+                <div class="linuxdo-settings-item-text">
+                  <label class="linuxdo-settings-item-label" for="useAiForSummary">启用 AI 总结</label>
+                  <div class="linuxdo-settings-description">开启后将使用 AI 对文章内容进行智能总结</div>
+                </div>
+                <label class="linuxdo-settings-switch">
+                  <input type="checkbox" id="useAiForSummary" ${CONFIG.USE_AI_FOR_SUMMARY ? 'checked' : ''}>
+                  <span class="linuxdo-settings-switch-slider"></span>
+                </label>
               </div>
-            </div>
-            <div class="linuxdo-settings-row">
-              <span class="linuxdo-settings-row-label">模型</span>
-              <div class="linuxdo-settings-row-value">
-                <input type="text" id="modelName" class="linuxdo-settings-input" value="${escapeHtml(CONFIG.MODEL_NAME)}" placeholder="gpt-4o-mini">
-              </div>
-            </div>
-            <div class="linuxdo-settings-field-vertical">
-              <label class="linuxdo-settings-label">API 地址</label>
-              <input type="text" id="apiBaseUrl" class="linuxdo-settings-input" value="${escapeHtml(CONFIG.API_BASE_URL)}" placeholder="https://api.openai.com/v1/chat/completions">
-            </div>
-          </div>
-          <p class="linuxdo-settings-group-footer">使用 OpenAI 兼容格式的完整 API 地址</p>
 
-          <!-- 总结设置 -->
-          <p class="linuxdo-settings-group-title" style="margin-top: 24px;">总结设置</p>
-          <div class="linuxdo-settings-group">
-            <div class="linuxdo-settings-row">
-              <span class="linuxdo-settings-row-label">最大字符数</span>
-              <div class="linuxdo-settings-row-value">
-                <input type="number" id="localSummaryMaxChars" class="linuxdo-settings-input" value="${CONFIG.LOCAL_SUMMARY_MAX_CHARS}" placeholder="90" min="1" max="10000">
+              <div class="linuxdo-settings-separator"></div>
+
+              <div class="linuxdo-settings-grid">
+                <div class="linuxdo-settings-field">
+                  <label class="linuxdo-settings-label" for="apiKey">API Key</label>
+                  <input type="password" id="apiKey" class="linuxdo-settings-input" value="${escapeHtml(CONFIG.API_KEY)}" placeholder="输入 API Key" autocomplete="off">
+                </div>
+                <div class="linuxdo-settings-field">
+                  <label class="linuxdo-settings-label" for="modelName">模型</label>
+                  <input type="text" id="modelName" class="linuxdo-settings-input" value="${escapeHtml(CONFIG.MODEL_NAME)}" placeholder="gpt-4o-mini">
+                </div>
+              </div>
+
+              <div class="linuxdo-settings-field">
+                <label class="linuxdo-settings-label" for="apiBaseUrl">API 地址</label>
+                <input type="text" id="apiBaseUrl" class="linuxdo-settings-input" value="${escapeHtml(CONFIG.API_BASE_URL)}" placeholder="https://api.openai.com/v1/chat/completions">
+                <div class="linuxdo-settings-description">使用 OpenAI 兼容格式的完整 API 地址</div>
               </div>
             </div>
-            <div class="linuxdo-settings-field-vertical">
-              <label class="linuxdo-settings-label">自定义 Prompt</label>
-              <textarea id="customPrompt" class="linuxdo-settings-textarea" placeholder="输入自定义的总结提示词">${escapeHtml(CONFIG.CUSTOM_SUMMARY_PROMPT)}</textarea>
-              <div class="linuxdo-settings-description">使用 {maxChars} 表示最大字符数，{content} 表示文章内容</div>
+          </section>
+
+          <section class="linuxdo-settings-section">
+            <div class="linuxdo-settings-section-header">
+              <h3 class="linuxdo-settings-section-title">总结设置</h3>
+              <p class="linuxdo-settings-section-desc">控制粘贴板正文长度与 Prompt</p>
             </div>
-          </div>
+            <div class="linuxdo-settings-card">
+              <div class="linuxdo-settings-grid">
+                <div class="linuxdo-settings-field">
+                  <label class="linuxdo-settings-label" for="localSummaryMaxChars">最大字符数</label>
+                  <input type="number" id="localSummaryMaxChars" class="linuxdo-settings-input" value="${CONFIG.LOCAL_SUMMARY_MAX_CHARS}" placeholder="90" min="1" max="10000">
+                  <div class="linuxdo-settings-description">范围：1 - 10000</div>
+                </div>
+              </div>
+              <div class="linuxdo-settings-field">
+                <label class="linuxdo-settings-label" for="customPrompt">自定义 Prompt</label>
+                <textarea id="customPrompt" class="linuxdo-settings-textarea" placeholder="输入自定义的总结提示词">${escapeHtml(CONFIG.CUSTOM_SUMMARY_PROMPT)}</textarea>
+                <div class="linuxdo-settings-description">使用 {maxChars} 表示最大字符数，{content} 表示文章内容</div>
+              </div>
+            </div>
+          </section>
         </form>
         <div class="linuxdo-settings-footer">
           <button type="button" class="linuxdo-settings-button" id="cancelSettings">取消</button>
@@ -1234,6 +1257,7 @@
     saveBtn.addEventListener('click', (e) => {
       e.preventDefault();
 
+      const compactMode = dialog.querySelector('#compactMode').checked;
       const useAiForSummary = dialog.querySelector('#useAiForSummary').checked;
       const apiKey = dialog.querySelector('#apiKey').value.trim();
       const apiBaseUrl = dialog.querySelector('#apiBaseUrl').value.trim();
@@ -1241,6 +1265,7 @@
       const customPrompt = dialog.querySelector('#customPrompt').value.trim();
       const modelName = dialog.querySelector('#modelName').value.trim();
 
+      setConfig('COMPACT_MODE', compactMode);
       setConfig('USE_AI_FOR_SUMMARY', useAiForSummary);
       setConfig('API_KEY', apiKey);
       setConfig('API_BASE_URL', apiBaseUrl || DEFAULT_CONFIG.API_BASE_URL);
@@ -1249,7 +1274,7 @@
       setConfig('CUSTOM_SUMMARY_PROMPT', customPrompt || DEFAULT_CONFIG.CUSTOM_SUMMARY_PROMPT);
 
       const originalText = saveBtn.textContent;
-      saveBtn.textContent = '已保存 ✓';
+      saveBtn.textContent = '已保存';
       saveBtn.disabled = true;
 
       setTimeout(() => {
