@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name          从linux do获取论坛文章数据与复制
 // @namespace     http://tampermonkey.net/
-// @version       0.15.10
+// @version       0.15.11
 // @description   从linux do论坛页面获取文章的板块、标题、链接、标签和内容总结，并在标题旁添加复制按钮。支持设置界面配置。
 // @author        @Loveyless https://github.com/Loveyless/linuxdo-share
 // @match         *://*.linux.do/*
@@ -29,8 +29,8 @@
   const DEFAULT_CONFIG = {
     // 是否启用简洁模式：标题+摘要合并一段，隐藏作者/板块/标签，链接单独一行
     COMPACT_MODE: false,
-    // 是否启用两栏布局（主题列表页）
-    TWO_COLUMN_LAYOUT: false,
+    // 主题列表分栏数（0/空表示关闭，最大 5；未设置时默认 2）
+    TWO_COLUMN_LAYOUT: 2,
     // 是否启用 AI 进行内容总结
     USE_AI_FOR_SUMMARY: false,
     // AI Key，如果 USE_AI_FOR_SUMMARY 为 true，则需要填写此项
@@ -487,7 +487,7 @@
         }
 
         .linuxdo-settings-label {
-            font-size: 12px;
+            font-size: 11px;
             font-weight: 500;
             color: var(--ld-fg);
         }
@@ -498,13 +498,32 @@
             border: 1px solid var(--ld-border);
             background: var(--ld-bg);
             color: var(--ld-fg);
-            border-radius: 10px;
-            padding: 10px 12px;
-            font-size: 13px;
+            border-radius: 9px;
+            padding: 8px 10px;
+            font-size: 12px;
             line-height: 1.4;
             font-family: inherit;
             outline: none;
             transition: box-shadow 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+        }
+
+        .linuxdo-settings-control {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            flex-shrink: 0;
+        }
+
+        .linuxdo-settings-input.small {
+            width: 72px;
+            text-align: center;
+            padding: 7px 10px;
+        }
+
+        .linuxdo-settings-unit {
+            font-size: 12px;
+            color: var(--ld-muted-fg);
+            line-height: 1;
         }
 
         .linuxdo-settings-input::placeholder,
@@ -698,7 +717,7 @@
 
         html.linuxdo-two-column-layout tbody.topic-list-body {
             display: grid !important;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
+            grid-template-columns: repeat(var(--ld-topic-columns, 2), minmax(0, 1fr));
             gap: 12px;
             padding: 0 !important;
             border-top: none !important;
@@ -1324,6 +1343,7 @@
    */
   function cleanupTwoColumnLayout() {
     document.documentElement.classList.remove('linuxdo-two-column-layout');
+    document.documentElement.style.removeProperty('--ld-topic-columns');
 
     document.querySelectorAll('.linuxdo-topic-meta').forEach((el) => el.remove());
     document.querySelectorAll('tr.topic-list-item[data-linuxdo-two-column-enhanced="1"]').forEach((tr) => {
@@ -1332,16 +1352,34 @@
   }
 
   /**
+   * @description 获取主题列表分栏数（兼容旧版 boolean 配置）。
+   * @returns {number} 0 表示关闭；否则为 1~5。
+   */
+  function getTopicListColumns() {
+    const rawValue = CONFIG.TWO_COLUMN_LAYOUT;
+
+    if (typeof rawValue === 'boolean') {
+      return rawValue ? 2 : 0;
+    }
+
+    const parsed = Number.parseInt(String(rawValue || '').trim(), 10);
+    if (!Number.isFinite(parsed) || parsed <= 0) return 0;
+    return Math.min(parsed, 5);
+  }
+
+  /**
    * @description 在主题列表页启用/刷新两栏布局。
    * 将回复/浏览/活动/发帖人收纳到标题下方，避免挤压标题区域。
    */
   function applyTwoColumnLayoutToTopicLists() {
-    if (!CONFIG.TWO_COLUMN_LAYOUT) {
+    const columns = getTopicListColumns();
+    if (columns <= 0) {
       cleanupTwoColumnLayout();
       return;
     }
 
     document.documentElement.classList.add('linuxdo-two-column-layout');
+    document.documentElement.style.setProperty('--ld-topic-columns', String(columns));
 
     const topicListBodies = document.querySelectorAll('tbody.topic-list-body');
     if (!topicListBodies || topicListBodies.length === 0) return;
@@ -1424,6 +1462,8 @@
   function createSettingsModal() {
     const dialog = document.createElement('dialog');
     dialog.className = 'linuxdo-settings-dialog';
+    const topicListColumns = getTopicListColumns();
+    const topicListColumnsInputValue = topicListColumns > 0 ? String(topicListColumns) : '';
 
     dialog.innerHTML = `
       <div class="linuxdo-settings-content">
@@ -1463,12 +1503,12 @@
               <div class="linuxdo-settings-item">
                 <div class="linuxdo-settings-item-text">
                   <label class="linuxdo-settings-item-label" for="twoColumnLayout">两栏布局</label>
-                  <div class="linuxdo-settings-description">开启后：列表以两栏卡片展示；发帖人/回复/浏览/活动信息收纳到标题下方，避免挤压标题</div>
+                  <div class="linuxdo-settings-description">填写分栏数（最大 5，默认 2）；填 0 或留空可关闭。开启后列表以卡片展示，并将发帖人/回复/浏览/活动信息收纳到标题下方</div>
                 </div>
-                <label class="linuxdo-settings-switch">
-                  <input type="checkbox" id="twoColumnLayout" ${CONFIG.TWO_COLUMN_LAYOUT ? 'checked' : ''}>
-                  <span class="linuxdo-settings-switch-slider"></span>
-                </label>
+                <div class="linuxdo-settings-control">
+                  <input type="number" id="twoColumnLayout" class="linuxdo-settings-input small" value="${topicListColumnsInputValue}" placeholder="2" min="0" max="5" step="1" inputmode="numeric">
+                  <span class="linuxdo-settings-unit">列</span>
+                </div>
               </div>
             </div>
           </section>
@@ -1577,7 +1617,10 @@
       e.preventDefault();
 
       const compactMode = dialog.querySelector('#compactMode').checked;
-      const twoColumnLayout = dialog.querySelector('#twoColumnLayout').checked;
+      const twoColumnLayoutRaw = dialog.querySelector('#twoColumnLayout').value;
+      let twoColumnLayout = Number.parseInt(String(twoColumnLayoutRaw || '').trim(), 10);
+      if (!Number.isFinite(twoColumnLayout) || twoColumnLayout <= 0) twoColumnLayout = 0;
+      if (twoColumnLayout > 5) twoColumnLayout = 5;
       const useAiForSummary = dialog.querySelector('#useAiForSummary').checked;
       const apiKey = dialog.querySelector('#apiKey').value.trim();
       const apiBaseUrl = dialog.querySelector('#apiBaseUrl').value.trim();
