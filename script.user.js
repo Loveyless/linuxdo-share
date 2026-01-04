@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name          从linux do获取论坛文章数据与复制
 // @namespace     http://tampermonkey.net/
-// @version       0.15.16
+// @version       0.15.17
 // @description   从linux do论坛页面获取文章的板块、标题、链接、标签和内容总结，并在标题旁添加复制按钮。支持设置界面配置。
 // @author        @Loveyless https://github.com/Loveyless/linuxdo-share
 // @match         *://*.linux.do/*
@@ -69,6 +69,10 @@
     COPY_SUCCESS_DURATION_MS: 2000,
     // 复制失败提示显示时间 (毫秒)
     COPY_FAILURE_DURATION_MS: 3000,
+    // 回到顶部：每隔多久检测一次 timeline-replies（毫秒）
+    BACK_TO_TOP_RETRY_INTERVAL_MS: 300,
+    // 回到顶部：最多重试次数（避免异常情况下无限循环）
+    BACK_TO_TOP_RETRY_MAX_ATTEMPTS: 40,
     // 设置保存后关闭延迟 (毫秒)
     SETTINGS_CLOSE_DELAY_MS: 300,
     // Dialog 关闭动画时间 (毫秒)
@@ -1512,8 +1516,6 @@
   let backToTopButtonEl = null;
   let suppressBackToTopClick = false;
   let backToTopRetryTimer = null;
-  const BACK_TO_TOP_RETRY_INTERVAL_MS = 300;
-  const BACK_TO_TOP_RETRY_MAX_ATTEMPTS = 40;
 
   function isTopicPageForBackToTop() {
     const path = window.location.pathname || '';
@@ -1597,19 +1599,24 @@
     let attempts = 0;
     backToTopRetryTimer = setInterval(() => {
       attempts += 1;
+      if (!isTopicPageForBackToTop()) {
+        clearBackToTopRetryTimer();
+        return;
+      }
+
       const currentIndex = getTimelineRepliesCurrentIndex();
       if (currentIndex === 1) {
         clearBackToTopRetryTimer();
         return;
       }
 
-      if (attempts >= BACK_TO_TOP_RETRY_MAX_ATTEMPTS) {
+      if (attempts >= SCRIPT_CONSTANTS.BACK_TO_TOP_RETRY_MAX_ATTEMPTS) {
         clearBackToTopRetryTimer();
         return;
       }
 
       performBackToTop();
-    }, BACK_TO_TOP_RETRY_INTERVAL_MS);
+    }, SCRIPT_CONSTANTS.BACK_TO_TOP_RETRY_INTERVAL_MS);
   }
 
   function ensureBackToTopButton() {
@@ -1790,8 +1797,7 @@
    */
   function copyTextToClipboard({ element, text }) {
     navigator.clipboard.writeText(text).then(function () {
-      console.log('文本已复制到剪贴板');
-      console.log(text);
+      console.debug('文本已复制到剪贴板');
       element.focus(); // 触发 :focus 样式显示“已复制”
       setTimeout(() => {
         element.blur(); // 移除焦点，重置提示
@@ -1823,7 +1829,9 @@
 
     // 如果 wait 小于等于 0，则无论如何都立即执行
     if (wait <= 0) {
-      return (...args) => func.apply(this, args);
+      return function (...args) {
+        return func.apply(this, args);
+      };
     }
 
     // 定时器触发时执行的函数，用于处理 trailing 调用
@@ -2007,7 +2015,7 @@
       fullTextContent = fullTextContent.replace(/\s*\n\s*/g, '\n').replace(/\n{2,}/g, '\n\n').trim();
 
       if (CONFIG.USE_AI_FOR_SUMMARY && CONFIG.API_KEY) {
-        console.log('尝试使用 AI 总结内容...');
+        console.debug('尝试使用 AI 总结内容...');
         const contentToSummarize = fullTextContent.substring(0, SCRIPT_CONSTANTS.AI_CONTENT_MAX_LENGTH);
         const customPrompt = CONFIG.CUSTOM_SUMMARY_PROMPT || DEFAULT_CONFIG.CUSTOM_SUMMARY_PROMPT;
         const prompt = customPrompt
@@ -2016,7 +2024,7 @@
 
         try {
           articleData.summary = `[AI总结]:` + await callAiAPI(prompt, CONFIG.API_KEY, CONFIG.MODEL_NAME);
-          console.log('OpenAI Compatible', CONFIG.MODEL_NAME, '总结:', articleData.summary);
+          console.debug('AI 总结完成:', CONFIG.MODEL_NAME);
           articleData.summary = articleData.summary.replace(/^(.)\s*(\S+)/, '$1$2').trim();
         } catch (error) {
           console.error('AI 总结失败:', error);
@@ -2096,7 +2104,6 @@
         const currentTitleElement = document.querySelector('h1[data-topic-id] a.fancy-title');
         const currentArticleRootElement = document.querySelector('.cooked');
         const articleData = await getArticleData(currentTitleElement, currentArticleRootElement);
-        console.log('获取到的文章数据:', articleData);
 
         const formattedText = formatCopiedText(articleData);
         addCopyHistoryItem({ articleData, copiedText: formattedText });
@@ -2472,7 +2479,7 @@
    */
   function showSettingsModal() {
     if (window !== window.top) {
-      console.log('在 iframe 中，跳过显示设置界面');
+      console.debug('在 iframe 中，跳过显示设置界面');
       return;
     }
 
@@ -2523,7 +2530,7 @@
    */
   function initializeScript() {
     if (window !== window.top) {
-      console.log("在 iframe 中，跳过脚本初始化");
+      console.debug("在 iframe 中，跳过脚本初始化");
       return;
     }
 
@@ -2557,7 +2564,7 @@
 
       addCopyButtonToArticleTitle(titleLinkElement);
     } else if (document.querySelector('h1[data-topic-id]')) {
-      console.log('部分所需元素未找到，等待DOM更新:', {
+      console.debug('部分所需元素未找到，等待DOM更新:', {
         title: !!titleLinkElement,
         content: !!articleRootElement,
         userData: !!userDataContainer,
