@@ -1,5 +1,5 @@
 ## greasyfork
-https://greasyfork.org/zh-CN/scripts/543581
+https://greasyfork.org/zh-CN/scripts/543581-linuxdo-share
 
 # 快速分享 Linux do 文章
 
