@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name          从linux do获取论坛文章数据与复制
 // @namespace     http://tampermonkey.net/
-// @version       0.15.22
+// @version       0.15.23
 // @description   从linux do论坛页面获取文章的板块、标题、链接、标签和内容总结，并在标题旁添加复制按钮。支持设置界面配置。
 // @author        @Loveyless https://github.com/Loveyless/linuxdo-share
 // @match         *://*.linux.do/*
@@ -29,8 +29,8 @@
   const DEFAULT_CONFIG = {
     // 是否启用简洁模式：标题+摘要合并一段，隐藏作者/板块/标签，链接单独一行
     COMPACT_MODE: false,
-    // 主题列表分栏数（0/空表示关闭，最大 5；未设置时默认 2）
-    TWO_COLUMN_LAYOUT: 2,
+    // 主题列表分栏数（0/空表示关闭，最大 5；默认关闭）
+    TWO_COLUMN_LAYOUT: 0,
     // 主题列表瀑布流展示（仅分栏数>0时生效）
     TOPIC_LIST_WATERFALL: false,
     // 是否启用 AI 进行内容总结
@@ -2513,38 +2513,6 @@
 
           <section class="linuxdo-settings-section">
             <div class="linuxdo-settings-section-header">
-              <h3 class="linuxdo-settings-section-title">列表布局</h3>
-              <p class="linuxdo-settings-section-desc">仅影响主题列表页（最新 / 分类 / 标签等）</p>
-            </div>
-            <div class="linuxdo-settings-card">
-              <div class="linuxdo-settings-item">
-                <div class="linuxdo-settings-item-text">
-                  <label class="linuxdo-settings-item-label" for="twoColumnLayout">两栏布局</label>
-                  <div class="linuxdo-settings-description">填写分栏数（最大 5，默认 2）；填 0 或留空可关闭。开启后列表以卡片展示，并将发帖人/回复/浏览/活动信息收纳到标题下方</div>
-                </div>
-                <div class="linuxdo-settings-control">
-                  <input type="number" id="twoColumnLayout" class="linuxdo-settings-input small" value="${topicListColumnsInputValue}" placeholder="2" min="0" max="5" step="1" inputmode="numeric">
-                  <span class="linuxdo-settings-unit">列</span>
-                </div>
-              </div>
-
-              <div class="linuxdo-settings-separator"></div>
-
-              <div class="linuxdo-settings-item" id="topicListWaterfallRow" style="${topicListColumns > 0 ? '' : 'display:none;'}">
-                <div class="linuxdo-settings-item-text">
-                  <label class="linuxdo-settings-item-label" for="topicListWaterfall">瀑布流</label>
-                  <div class="linuxdo-settings-description">仅在分栏数大于 0 时显示/生效；开启后以瀑布流方式排列卡片</div>
-                </div>
-                <label class="linuxdo-settings-switch">
-                  <input type="checkbox" id="topicListWaterfall" ${CONFIG.TOPIC_LIST_WATERFALL ? 'checked' : ''}>
-                  <span class="linuxdo-settings-switch-slider"></span>
-                </label>
-              </div>
-            </div>
-          </section>
-
-          <section class="linuxdo-settings-section">
-            <div class="linuxdo-settings-section-header">
               <h3 class="linuxdo-settings-section-title">AI 总结</h3>
               <p class="linuxdo-settings-section-desc">可选：使用 OpenAI Compatible 接口</p>
             </div>
@@ -2598,6 +2566,38 @@
                 <label class="linuxdo-settings-label" for="customPrompt">自定义 Prompt</label>
                 <textarea id="customPrompt" class="linuxdo-settings-textarea" placeholder="输入自定义的总结提示词">${escapeHtml(CONFIG.CUSTOM_SUMMARY_PROMPT)}</textarea>
                 <div class="linuxdo-settings-description">使用 {maxChars} 表示最大字符数，{content} 表示文章内容</div>
+              </div>
+            </div>
+          </section>
+
+          <section class="linuxdo-settings-section">
+            <div class="linuxdo-settings-section-header">
+              <h3 class="linuxdo-settings-section-title">列表布局</h3>
+              <p class="linuxdo-settings-section-desc">仅影响主题列表页（最新 / 分类 / 标签等）</p>
+            </div>
+            <div class="linuxdo-settings-card">
+              <div class="linuxdo-settings-item">
+                <div class="linuxdo-settings-item-text">
+                  <label class="linuxdo-settings-item-label" for="twoColumnLayout">两栏布局</label>
+                  <div class="linuxdo-settings-description">填写分栏数（最大 5）；留空或填 0 可关闭（默认关闭）。例如填 2 即两栏；开启后列表以卡片展示，并将发帖人/回复/浏览/活动信息收纳到标题下方</div>
+                </div>
+                <div class="linuxdo-settings-control">
+                  <input type="number" id="twoColumnLayout" class="linuxdo-settings-input small" value="${topicListColumnsInputValue}" placeholder="2" min="0" max="5" step="1" inputmode="numeric">
+                  <span class="linuxdo-settings-unit">列</span>
+                </div>
+              </div>
+
+              <div class="linuxdo-settings-separator"></div>
+
+              <div class="linuxdo-settings-item" id="topicListWaterfallRow" style="${topicListColumns > 0 ? '' : 'display:none;'}">
+                <div class="linuxdo-settings-item-text">
+                  <label class="linuxdo-settings-item-label" for="topicListWaterfall">瀑布流</label>
+                  <div class="linuxdo-settings-description">仅在分栏数大于 0 时显示/生效；开启后以瀑布流方式排列卡片</div>
+                </div>
+                <label class="linuxdo-settings-switch">
+                  <input type="checkbox" id="topicListWaterfall" ${CONFIG.TOPIC_LIST_WATERFALL ? 'checked' : ''}>
+                  <span class="linuxdo-settings-switch-slider"></span>
+                </label>
               </div>
             </div>
           </section>
