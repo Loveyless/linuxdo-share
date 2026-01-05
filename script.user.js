@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name          从linux do获取论坛文章数据与复制
 // @namespace     http://tampermonkey.net/
-// @version       0.15.27
+// @version       0.15.28
 // @description   从linux do论坛页面获取文章的板块、标题、链接、标签和内容总结，并在标题旁添加复制按钮。支持设置界面配置。
 // @author        @Loveyless https://github.com/Loveyless/linuxdo-share
 // @match         *://*.linux.do/*
@@ -1245,7 +1245,7 @@
   }
   // #endregion
 
-  // #region 通用辅助函数
+  // #region 工具函数
   // ==========================================================
 
   /**
@@ -1317,7 +1317,9 @@
     return formattedText.replace(/\n\n+/g, '\n\n').trim();
   }
 
-  // #region 历史复制内容
+  // #endregion
+
+  // #region 历史复制内容（搜索框）
   // ==========================================================
 
   const COPY_HISTORY_STORAGE_KEY = 'COPY_HISTORY_V1';
@@ -1997,6 +1999,9 @@
 
   // #endregion
 
+  // #region AI 总结与剪贴板
+  // ==========================================================
+
   /**
    * @description 调用 AI 以获取内容总结 (OpenAI Compatible 格式)。
    * @param {string} prompt - 发送给 API 的完整提示词。
@@ -2409,6 +2414,59 @@
   // #region 主题列表布局
   // ==========================================================
 
+  function normalizeTopicBadgesWhitespace(badges) {
+    if (!badges) return;
+    badges.childNodes.forEach((node) => {
+      if (node.nodeType !== Node.TEXT_NODE) return;
+      const cleaned = String(node.textContent || '').replace(/\u00A0/g, '').trim();
+      if (!cleaned) node.remove();
+    });
+  }
+
+  function parseTopicMetricNumber(text) {
+    const raw = String(text || '').trim().toLowerCase().replace(/,/g, '');
+    if (!raw) return 0;
+    const match = raw.match(/^(\d+(?:\.\d+)?)([km]?)$/);
+    if (match) {
+      const base = Number.parseFloat(match[1]);
+      if (!Number.isFinite(base)) return 0;
+      const unit = match[2];
+      if (unit === 'k') return base * 1000;
+      if (unit === 'm') return base * 1000000;
+      return base;
+    }
+    const fallback = Number.parseFloat(raw);
+    return Number.isFinite(fallback) ? fallback : 0;
+  }
+
+  function appendTopicMetaItem(meta, text, title) {
+    const value = (text || '').trim();
+    if (!value) return;
+    const span = document.createElement('span');
+    span.className = 'linuxdo-topic-meta-item';
+    span.textContent = value;
+    if (title) span.title = title;
+    meta.appendChild(span);
+  }
+
+  function appendTopicMetaCountItem(meta, text, title) {
+    const value = (text || '').trim();
+    if (!value) return;
+    const span = document.createElement('span');
+    span.className = 'linuxdo-topic-meta-item';
+    span.textContent = value;
+    if (title) span.title = title;
+
+    const numericValue = parseTopicMetricNumber(value);
+    if (numericValue >= 500) {
+      span.classList.add('linuxdo-topic-meta-count-hot');
+    } else if (numericValue >= 100) {
+      span.classList.add('linuxdo-topic-meta-count-warn');
+    }
+
+    meta.appendChild(span);
+  }
+
   /**
    * @description 清理两栏布局的增强 DOM，恢复为默认样式。
    */
@@ -2416,7 +2474,19 @@
     document.documentElement.classList.remove('linuxdo-two-column-layout', 'linuxdo-topic-waterfall');
     document.documentElement.style.removeProperty('--ld-topic-columns');
 
-    document.querySelectorAll('.linuxdo-topic-meta').forEach((el) => el.remove());
+    document.querySelectorAll('.linuxdo-topic-meta').forEach((meta) => {
+      const badges = meta.querySelector('.topic-post-badges');
+      if (badges) {
+        const mainLinkCell = meta.closest('td.main-link');
+        const linkTopLine = mainLinkCell ? mainLinkCell.querySelector('.link-top-line') : null;
+        if (linkTopLine) {
+          linkTopLine.appendChild(badges);
+        } else if (mainLinkCell) {
+          mainLinkCell.appendChild(badges);
+        }
+      }
+      meta.remove();
+    });
     document.querySelectorAll('tr.topic-list-item[data-linuxdo-two-column-enhanced="1"]').forEach((tr) => {
       tr.removeAttribute('data-linuxdo-two-column-enhanced');
     });
@@ -2472,11 +2542,7 @@
         if (row.getAttribute('data-linuxdo-two-column-enhanced') === '1' && existingMeta) {
           const badges = mainLinkCell.querySelector('.topic-post-badges');
           if (badges && !existingMeta.contains(badges)) {
-            badges.childNodes.forEach((node) => {
-              if (node.nodeType !== Node.TEXT_NODE) return;
-              const cleaned = String(node.textContent || '').replace(/\u00A0/g, '').trim();
-              if (!cleaned) node.remove();
-            });
+            normalizeTopicBadgesWhitespace(badges);
             existingMeta.appendChild(badges);
           }
           return;
@@ -2499,69 +2565,21 @@
           meta.appendChild(avatar);
         }
 
-        const addMetaItem = (text, title) => {
-          const value = (text || '').trim();
-          if (!value) return;
-          const span = document.createElement('span');
-          span.className = 'linuxdo-topic-meta-item';
-          span.textContent = value;
-          if (title) span.title = title;
-          meta.appendChild(span);
-        };
-
-        const parseMetricNumber = (text) => {
-          const raw = String(text || '').trim().toLowerCase().replace(/,/g, '');
-          if (!raw) return 0;
-          const match = raw.match(/^(\d+(?:\.\d+)?)([km]?)$/);
-          if (match) {
-            const base = Number.parseFloat(match[1]);
-            if (!Number.isFinite(base)) return 0;
-            const unit = match[2];
-            if (unit === 'k') return base * 1000;
-            if (unit === 'm') return base * 1000000;
-            return base;
-          }
-          const fallback = Number.parseFloat(raw);
-          return Number.isFinite(fallback) ? fallback : 0;
-        };
-
-        const addMetaCountItem = (text, title) => {
-          const value = (text || '').trim();
-          if (!value) return;
-          const span = document.createElement('span');
-          span.className = 'linuxdo-topic-meta-item';
-          span.textContent = value;
-          if (title) span.title = title;
-
-          const numericValue = parseMetricNumber(value);
-          if (numericValue >= 500) {
-            span.classList.add('linuxdo-topic-meta-count-hot');
-          } else if (numericValue >= 100) {
-            span.classList.add('linuxdo-topic-meta-count-warn');
-          }
-
-          meta.appendChild(span);
-        };
-
         // b: 回复数（posts-map 列的第一个 a）
         const repliesEl = row.querySelector('td.num.posts-map a.badge-posts .number') || row.querySelector('td.num.posts-map .number');
-        addMetaCountItem(repliesEl ? repliesEl.textContent : '', '回复');
+        appendTopicMetaCountItem(meta, repliesEl ? repliesEl.textContent : '', '回复');
 
         // c: 浏览量
         const viewsEl = row.querySelector('td.num.views .number') || row.querySelector('td.views .number');
-        addMetaCountItem(viewsEl ? viewsEl.textContent : '', '浏览');
+        appendTopicMetaCountItem(meta, viewsEl ? viewsEl.textContent : '', '浏览');
 
         // 活动时间（relative-date）
         const activityEl = row.querySelector('td.activity .relative-date') || row.querySelector('td.age .relative-date');
-        addMetaItem(activityEl ? activityEl.textContent : '', '活动');
+        appendTopicMetaItem(meta, activityEl ? activityEl.textContent : '', '活动');
 
         const badges = mainLinkCell.querySelector('.topic-post-badges');
         if (badges) {
-          badges.childNodes.forEach((node) => {
-            if (node.nodeType !== Node.TEXT_NODE) return;
-            const cleaned = String(node.textContent || '').replace(/\u00A0/g, '').trim();
-            if (!cleaned) node.remove();
-          });
+          normalizeTopicBadgesWhitespace(badges);
           meta.appendChild(badges);
         }
 
