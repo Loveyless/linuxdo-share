@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name          从linux do获取论坛文章数据与复制
 // @namespace     http://tampermonkey.net/
-// @version       0.15.23
+// @version       0.15.24
 // @description   从linux do论坛页面获取文章的板块、标题、链接、标签和内容总结，并在标题旁添加复制按钮。支持设置界面配置。
 // @author        @Loveyless https://github.com/Loveyless/linuxdo-share
 // @match         *://*.linux.do/*
@@ -1041,14 +1041,16 @@
             border: 1px solid var(--ld-h-border);
             background: transparent;
             color: var(--ld-h-muted-fg);
-            width: 24px;
             height: 24px;
-            padding: 0;
+            padding: 0 10px;
             border-radius: 10px;
             display: inline-flex;
             align-items: center;
             justify-content: center;
             cursor: pointer;
+            font-size: 12px;
+            font-weight: 500;
+            line-height: 1;
             transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease, transform 0.05s ease;
         }
 
@@ -1065,12 +1067,6 @@
         .linuxdo-copy-history-settings-btn:focus-visible {
             outline: none;
             box-shadow: 0 0 0 3px var(--ld-h-ring);
-        }
-
-        .linuxdo-copy-history-settings-btn svg {
-            width: 14px;
-            height: 14px;
-            display: block;
         }
 
         .linuxdo-copy-history-hint {
@@ -1498,19 +1494,14 @@
     const list = Array.isArray(items) ? items : getCopyHistoryItems();
 
     const header = `
-      <div class="linuxdo-copy-history-header">
-        <div class="linuxdo-copy-history-header-left">
-          <div class="linuxdo-copy-history-title">历史复制</div>
-          <button type="button" class="linuxdo-copy-history-settings-btn" data-action="settings" aria-label="打开设置" title="打开设置">
-            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
-              <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z" stroke="currentColor" stroke-width="2"/>
-              <path d="M19.4 15a8.1 8.1 0 0 0 .1-1l2-1.2-2-3.5-2.3.6a7.8 7.8 0 0 0-1.7-1L15 6h-4l-.5 2.9a7.8 7.8 0 0 0-1.7 1l-2.3-.6-2 3.5 2 1.2a8.1 8.1 0 0 0 .1 1 8.1 8.1 0 0 0-.1 1l-2 1.2 2 3.5 2.3-.6a7.8 7.8 0 0 0 1.7 1L11 18h4l.5-2.9a7.8 7.8 0 0 0 1.7-1l2.3.6 2-3.5-2-1.2a8.1 8.1 0 0 0-.1-1z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
-            </svg>
-          </button>
+        <div class="linuxdo-copy-history-header">
+          <div class="linuxdo-copy-history-header-left">
+            <div class="linuxdo-copy-history-title">历史复制</div>
+            <button type="button" class="linuxdo-copy-history-settings-btn" data-action="settings" aria-label="打开设置" title="打开设置">设置</button>
+          </div>
+          <div class="linuxdo-copy-history-hint">点击复制 / 打开链接</div>
         </div>
-        <div class="linuxdo-copy-history-hint">点击复制 / 打开链接</div>
-      </div>
-    `;
+      `;
 
     if (!list || list.length === 0) {
       popover.innerHTML = header + `<div class="linuxdo-copy-history-empty">暂无历史记录</div>`;
