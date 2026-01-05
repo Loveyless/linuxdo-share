@@ -777,17 +777,36 @@
             display: inline-flex;
             align-items: center;
             gap: 6px;
+            height: 24px;
+            padding: 0 10px;
+            border-radius: 10px;
+            border: 1px solid var(--ld-h-border);
+            background: transparent;
             font-size: 12px;
+            font-weight: 500;
+            line-height: 1;
             color: var(--ld-h-muted-fg);
             user-select: none;
             cursor: pointer;
             white-space: nowrap;
+            transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease, transform 0.05s ease;
+        }
+
+        .linuxdo-copy-history-select-all:hover {
+            background: var(--ld-h-muted);
+            color: var(--ld-h-fg);
+            box-shadow: 0 0 0 3px var(--ld-h-ring);
+        }
+
+        .linuxdo-copy-history-select-all:active {
+            transform: translateY(1px);
         }
 
         .linuxdo-copy-history-select-all input[type="checkbox"] {
             width: 14px;
             height: 14px;
             margin: 0;
+            display: block;
             cursor: pointer;
             accent-color: #3b82f6;
         }
@@ -898,6 +917,7 @@
             width: 14px;
             height: 14px;
             margin: 0;
+            display: block;
             cursor: pointer;
             accent-color: #3b82f6;
         }
@@ -1336,11 +1356,11 @@
     const header = `
         <div class="linuxdo-copy-history-header">
           <div class="linuxdo-copy-history-header-left">
-            <div class="linuxdo-copy-history-title">历史复制</div>
             <label class="linuxdo-copy-history-select-all" title="全选/取消全选">
               <input type="checkbox" data-action="select-all" />
               全选
             </label>
+            <div class="linuxdo-copy-history-title">历史复制</div>
             <button type="button" class="linuxdo-copy-history-settings-btn" data-action="settings" aria-label="打开设置" title="打开设置">设置</button>
             <button type="button" class="linuxdo-copy-history-delete-btn" data-action="delete-selected" aria-label="删除已选择" title="删除已选择" disabled>删除</button>
           </div>
