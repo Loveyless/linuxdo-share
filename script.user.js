@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name          从linux do获取论坛文章数据与复制
 // @namespace     http://tampermonkey.net/
-// @version       0.15.26
+// @version       0.15.27
 // @description   从linux do论坛页面获取文章的板块、标题、链接、标签和内容总结，并在标题旁添加复制按钮。支持设置界面配置。
 // @author        @Loveyless https://github.com/Loveyless/linuxdo-share
 // @match         *://*.linux.do/*
@@ -1625,8 +1625,30 @@
   let backToTopRetryTimer = null;
 
   function isTopicPageForBackToTop() {
-    const path = window.location.pathname || '';
-    return /^\/t\/topic\/\d+(?:\/\d+)?/.test(path);
+    return !!getTopicPathInfoForBackToTop(window.location.pathname);
+  }
+
+  function getTopicPathInfoForBackToTop(pathname) {
+    const path = String(pathname || '');
+    const topicIndex = path.indexOf('/t/');
+    if (topicIndex < 0) return null;
+    const prefix = path.slice(0, topicIndex);
+    const topicPath = path.slice(topicIndex);
+    const match = topicPath.match(/^\/t\/([^\/]+)\/(\d+)(?:\/([^\/?#]+))?/);
+    if (!match) return null;
+
+    const slug = match[1];
+    const topicId = match[2];
+    const postSegment = match[3] || '';
+    const postNumber = postSegment && /^\d+$/.test(postSegment) ? Number.parseInt(postSegment, 10) : null;
+
+    return {
+      prefix,
+      slug,
+      topicId,
+      postNumber,
+      postSegment,
+    };
   }
 
   function getBackToTopSavedPosition() {
@@ -1674,12 +1696,6 @@
     }
   }
 
-  function getTopicIdFromPathForBackToTop() {
-    const path = window.location.pathname || '';
-    const match = path.match(/^\/t\/topic\/(\d+)/);
-    return match ? match[1] : '';
-  }
-
   function getFirstPostUrlForBackToTop() {
     const startLink = document.querySelector('.timeline-date-wrapper a.start-date[href]');
     if (startLink) {
@@ -1687,8 +1703,12 @@
       if (href) return href;
     }
 
-    const topicId = getTopicIdFromPathForBackToTop();
-    if (topicId) return `/t/topic/${topicId}/1`;
+    const info = getTopicPathInfoForBackToTop(window.location.pathname);
+    if (info && info.topicId) {
+      const prefix = info.prefix || '';
+      const slug = info.slug || 'topic';
+      return `${prefix}/t/${slug}/${info.topicId}/1`;
+    }
     return '';
   }
 
@@ -1702,6 +1722,45 @@
       console.warn('start-date 回到顶部执行失败:', error);
       return false;
     }
+  }
+
+  function getDiscourseContainerForBackToTop() {
+    const container = window.Discourse && window.Discourse.__container__ ? window.Discourse.__container__ : null;
+    if (container && typeof container.lookup === 'function') return container;
+
+    const req = window.require || window.requirejs;
+    if (typeof req === 'function') {
+      try {
+        const appMod = req('discourse/app');
+        const appInstance = (appMod && (appMod.default || appMod)) || null;
+        const appContainer = appInstance && appInstance.__container__;
+        if (appContainer && typeof appContainer.lookup === 'function') return appContainer;
+      } catch (_) {
+        // ignore
+      }
+    }
+
+    return null;
+  }
+
+  function tryJumpToFirstPostByTopicController() {
+    const container = getDiscourseContainerForBackToTop();
+    if (!container) return false;
+    try {
+      const controller = container.lookup('controller:topic');
+      if (!controller) return false;
+      if (typeof controller.jumpTop === 'function') {
+        controller.jumpTop();
+        return true;
+      }
+      if (typeof controller.send === 'function') {
+        controller.send('jumpTop');
+        return true;
+      }
+    } catch (error) {
+      console.warn('topic controller jumpTop 回到顶部执行失败:', error);
+    }
+    return false;
   }
 
   function getDiscourseUrlApi() {
@@ -1730,7 +1789,14 @@
     const discourseURL = getDiscourseUrlApi();
     if (discourseURL && typeof discourseURL.routeTo === 'function') {
       try {
-        discourseURL.routeTo(toRelativeUrl(href));
+        discourseURL.routeTo(toRelativeUrl(href), {
+          skipIfOnScreen: false,
+          keepFilter: true,
+          afterRouteComplete: () => {
+            window.scrollTo(0, 0);
+            requestAnimationFrame(() => window.scrollTo(0, 0));
+          },
+        });
         return true;
       } catch (error) {
         console.warn('DiscourseURL.routeTo 回到顶部执行失败:', error);
@@ -1741,6 +1807,7 @@
 
   function tryJumpToFirstPost() {
     // 优先使用 Discourse 的路由（无整页刷新），其次点击官方“跳到顶部”入口
+    if (tryJumpToFirstPostByTopicController()) return true;
     if (tryJumpToFirstPostByDiscourseURL()) return true;
     if (tryJumpToFirstPostByTimelineStartDate()) return true;
     return false;
@@ -1763,15 +1830,30 @@
     return Number.isFinite(current) ? current : null;
   }
 
+  function getTopicProgressCurrentIndex() {
+    const el = document.querySelector('#topic-progress .nums span:first-child');
+    if (!el) return null;
+    const value = Number.parseInt(String(el.textContent || '').trim(), 10);
+    return Number.isFinite(value) ? value : null;
+  }
+
+  function getCurrentPostIndexForBackToTop() {
+    return getTimelineRepliesCurrentIndex() ?? getTopicProgressCurrentIndex();
+  }
+
   function isAtFirstPost() {
-    const currentIndex = getTimelineRepliesCurrentIndex();
+    const currentIndex = getCurrentPostIndexForBackToTop();
     if (currentIndex === 1) return true;
-    const path = window.location.pathname || '';
-    return /^\/t\/topic\/\d+\/1(?:$|\/)/.test(path);
+
+    const info = getTopicPathInfoForBackToTop(window.location.pathname);
+    if (!info) return false;
+    if (!info.postSegment) return true;
+    return info.postNumber === 1;
   }
 
   function performBackToTop() {
     window.scrollTo(0, 0);
+    requestAnimationFrame(() => window.scrollTo(0, 0));
     tryJumpToFirstPost();
   }
 
@@ -1779,6 +1861,7 @@
     clearBackToTopRetryTimer();
 
     let attempts = 0;
+    let hardNavigated = false;
     backToTopRetryTimer = setInterval(() => {
       attempts += 1;
       if (!isTopicPageForBackToTop()) {
@@ -1791,6 +1874,20 @@
         window.scrollTo(0, 0);
         requestAnimationFrame(() => window.scrollTo(0, 0));
         return;
+      }
+
+      if (!hardNavigated && attempts >= 4) {
+        const href = getFirstPostUrlForBackToTop();
+        if (href) {
+          hardNavigated = true;
+          try {
+            window.location.assign(href);
+            clearBackToTopRetryTimer();
+            return;
+          } catch (_) {
+            // ignore
+          }
+        }
       }
 
       if (attempts >= SCRIPT_CONSTANTS.BACK_TO_TOP_RETRY_MAX_ATTEMPTS) {
