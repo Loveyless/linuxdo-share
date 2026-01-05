@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name          从linux do获取论坛文章数据与复制
 // @namespace     http://tampermonkey.net/
-// @version       0.15.21
+// @version       0.15.22
 // @description   从linux do论坛页面获取文章的板块、标题、链接、标签和内容总结，并在标题旁添加复制按钮。支持设置界面配置。
 // @author        @Loveyless https://github.com/Loveyless/linuxdo-share
 // @match         *://*.linux.do/*
@@ -673,22 +673,24 @@
 
         /* 主题列表两栏布局 */
         html.linuxdo-two-column-layout {
-            --ld-list-bg: #ffffff;
-            --ld-list-fg: #0f172a;
-            --ld-list-muted: #64748b;
-            --ld-list-border: rgba(15, 23, 42, 0.12);
-            --ld-list-card: #ffffff;
-            --ld-list-ring: rgba(59, 130, 246, 0.18);
+            /* 颜色尽量复用 Discourse 的 CSS 变量，自动适配深浅色主题 */
+            --ld-list-bg: var(--d-content-background, var(--secondary, #ffffff));
+            --ld-list-fg: var(--primary, #0f172a);
+            --ld-list-muted: var(--metadata-color, var(--primary-medium, #64748b));
+            --ld-list-border: var(--content-border-color, rgba(15, 23, 42, 0.12));
+            --ld-list-card: var(--topic-list-item-background-color, var(--secondary, #ffffff));
+            --ld-list-ring: var(--tertiary-low, rgba(59, 130, 246, 0.18));
         }
 
-        html[style*="color-scheme: dark"].linuxdo-two-column-layout,
-        html.dark.linuxdo-two-column-layout {
-            --ld-list-bg: #0b1220;
-            --ld-list-fg: #e2e8f0;
-            --ld-list-muted: #94a3b8;
-            --ld-list-border: rgba(148, 163, 184, 0.18);
-            --ld-list-card: #0f172a;
-            --ld-list-ring: rgba(59, 130, 246, 0.28);
+        html.linuxdo-two-column-layout .linuxdo-topic-meta-item.linuxdo-topic-meta-count-warn {
+            color: var(--highlight-high, #fbbf24);
+            font-weight: 600;
+        }
+
+        html.linuxdo-two-column-layout .linuxdo-topic-meta-item.linuxdo-topic-meta-count-hot {
+            /* 来自 Discourse topic list 的 heatmap-high 颜色 */
+            color: #fe7a15;
+            font-weight: 700;
         }
 
         html.linuxdo-two-column-layout table.topic-list {
@@ -856,6 +858,14 @@
             gap: 8px;
         }
 
+        html.linuxdo-two-column-layout tbody.topic-list-body > tr.topic-list-item td.main-link .link-bottom-line .discourse-tags {
+            display: contents;
+        }
+
+        html.linuxdo-two-column-layout tbody.topic-list-body > tr.topic-list-item td.main-link .link-bottom-line .discourse-tags__tag-separator {
+            display: none !important;
+        }
+
         html.linuxdo-two-column-layout .linuxdo-topic-meta {
             margin-top: 10px;
             padding-top: 10px;
@@ -904,6 +914,11 @@
             display: inline-flex;
             align-items: center;
             gap: 6px;
+        }
+
+        html.linuxdo-two-column-layout .linuxdo-topic-meta .topic-post-badges a {
+            display: inline-flex;
+            align-items: center;
         }
 
         html.linuxdo-two-column-layout .linuxdo-topic-meta .linuxdo-topic-meta-item + .topic-post-badges::before {
@@ -2381,13 +2396,47 @@
           meta.appendChild(span);
         };
 
+        const parseMetricNumber = (text) => {
+          const raw = String(text || '').trim().toLowerCase().replace(/,/g, '');
+          if (!raw) return 0;
+          const match = raw.match(/^(\d+(?:\.\d+)?)([km]?)$/);
+          if (match) {
+            const base = Number.parseFloat(match[1]);
+            if (!Number.isFinite(base)) return 0;
+            const unit = match[2];
+            if (unit === 'k') return base * 1000;
+            if (unit === 'm') return base * 1000000;
+            return base;
+          }
+          const fallback = Number.parseFloat(raw);
+          return Number.isFinite(fallback) ? fallback : 0;
+        };
+
+        const addMetaCountItem = (text, title) => {
+          const value = (text || '').trim();
+          if (!value) return;
+          const span = document.createElement('span');
+          span.className = 'linuxdo-topic-meta-item';
+          span.textContent = value;
+          if (title) span.title = title;
+
+          const numericValue = parseMetricNumber(value);
+          if (numericValue >= 500) {
+            span.classList.add('linuxdo-topic-meta-count-hot');
+          } else if (numericValue >= 100) {
+            span.classList.add('linuxdo-topic-meta-count-warn');
+          }
+
+          meta.appendChild(span);
+        };
+
         // b: 回复数（posts-map 列的第一个 a）
         const repliesEl = row.querySelector('td.num.posts-map a.badge-posts .number') || row.querySelector('td.num.posts-map .number');
-        addMetaItem(repliesEl ? repliesEl.textContent : '', '回复');
+        addMetaCountItem(repliesEl ? repliesEl.textContent : '', '回复');
 
         // c: 浏览量
         const viewsEl = row.querySelector('td.num.views .number') || row.querySelector('td.views .number');
-        addMetaItem(viewsEl ? viewsEl.textContent : '', '浏览');
+        addMetaCountItem(viewsEl ? viewsEl.textContent : '', '浏览');
 
         // 活动时间（relative-date）
         const activityEl = row.querySelector('td.activity .relative-date') || row.querySelector('td.age .relative-date');
