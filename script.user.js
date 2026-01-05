@@ -1,12 +1,11 @@
 // ==UserScript==
 // @name          Linuxdo-share
 // @namespace     http://tampermonkey.net/
-// @version       0.15.32
+// @version       0.15.33
 // @description   从linux do论坛页面获取文章的板块、标题、链接、标签和内容总结，并在标题旁添加复制按钮。支持设置界面配置。
 // @author        @Loveyless https://github.com/Loveyless/linuxdo-share
 // @match         *://*.linux.do/*
 // @match         *://*.idcflare.com/*
-// @match         *://*.nodeloc.com/*
 // @updateURL     https://raw.githubusercontent.com/Loveyless/linuxdo-share/main/script.user.js
 // @downloadURL   https://raw.githubusercontent.com/Loveyless/linuxdo-share/main/script.user.js
 // @grant         GM_getValue
