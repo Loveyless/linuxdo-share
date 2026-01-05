@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name          从linux do获取论坛文章数据与复制
 // @namespace     http://tampermonkey.net/
-// @version       0.15.20
+// @version       0.15.21
 // @description   从linux do论坛页面获取文章的板块、标题、链接、标签和内容总结，并在标题旁添加复制按钮。支持设置界面配置。
 // @author        @Loveyless https://github.com/Loveyless/linuxdo-share
 // @match         *://*.linux.do/*
@@ -895,6 +895,18 @@
         }
 
         html.linuxdo-two-column-layout .linuxdo-topic-meta-item + .linuxdo-topic-meta-item::before {
+            content: "·";
+            margin: 0 6px 0 0;
+            color: var(--ld-list-muted);
+        }
+
+        html.linuxdo-two-column-layout .linuxdo-topic-meta .topic-post-badges {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        html.linuxdo-two-column-layout .linuxdo-topic-meta .linuxdo-topic-meta-item + .topic-post-badges::before {
             content: "·";
             margin: 0 6px 0 0;
             color: var(--ld-list-muted);
@@ -2325,12 +2337,22 @@
       if (!rows || rows.length === 0) return;
 
       rows.forEach((row) => {
-        if (row.getAttribute('data-linuxdo-two-column-enhanced') === '1') {
-          return;
-        }
-
         const mainLinkCell = row.querySelector('td.main-link');
         if (!mainLinkCell) return;
+
+        const existingMeta = mainLinkCell.querySelector('.linuxdo-topic-meta');
+        if (row.getAttribute('data-linuxdo-two-column-enhanced') === '1' && existingMeta) {
+          const badges = mainLinkCell.querySelector('.topic-post-badges');
+          if (badges && !existingMeta.contains(badges)) {
+            badges.childNodes.forEach((node) => {
+              if (node.nodeType !== Node.TEXT_NODE) return;
+              const cleaned = String(node.textContent || '').replace(/\u00A0/g, '').trim();
+              if (!cleaned) node.remove();
+            });
+            existingMeta.appendChild(badges);
+          }
+          return;
+        }
 
         const meta = document.createElement('div');
         meta.className = 'linuxdo-topic-meta';
@@ -2370,6 +2392,16 @@
         // 活动时间（relative-date）
         const activityEl = row.querySelector('td.activity .relative-date') || row.querySelector('td.age .relative-date');
         addMetaItem(activityEl ? activityEl.textContent : '', '活动');
+
+        const badges = mainLinkCell.querySelector('.topic-post-badges');
+        if (badges) {
+          badges.childNodes.forEach((node) => {
+            if (node.nodeType !== Node.TEXT_NODE) return;
+            const cleaned = String(node.textContent || '').replace(/\u00A0/g, '').trim();
+            if (!cleaned) node.remove();
+          });
+          meta.appendChild(badges);
+        }
 
         if (!meta.firstChild) return;
 
