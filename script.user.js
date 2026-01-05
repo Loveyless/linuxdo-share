@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name          从linux do获取论坛文章数据与复制
 // @namespace     http://tampermonkey.net/
-// @version       0.15.19
+// @version       0.15.20
 // @description   从linux do论坛页面获取文章的板块、标题、链接、标签和内容总结，并在标题旁添加复制按钮。支持设置界面配置。
 // @author        @Loveyless https://github.com/Loveyless/linuxdo-share
 // @match         *://*.linux.do/*
@@ -146,7 +146,8 @@
             --tooltip-offset: 8px;
         }
 
-        html[style*="color-scheme: dark"] .copy-button {
+        html[style*="color-scheme: dark"] .copy-button,
+        html.dark .copy-button {
             --button-bg: #353434;
             --button-hover-bg: #464646;
             --button-text-color: #ccc;
@@ -319,7 +320,8 @@
             box-sizing: border-box;
         }
 
-        html[style*="color-scheme: dark"] .linuxdo-settings-dialog {
+        html[style*="color-scheme: dark"] .linuxdo-settings-dialog,
+        html.dark .linuxdo-settings-dialog {
             --ld-bg: #0b1220;
             --ld-fg: #e2e8f0;
             --ld-muted: rgba(148, 163, 184, 0.12);
@@ -679,7 +681,8 @@
             --ld-list-ring: rgba(59, 130, 246, 0.18);
         }
 
-        html[style*="color-scheme: dark"].linuxdo-two-column-layout {
+        html[style*="color-scheme: dark"].linuxdo-two-column-layout,
+        html.dark.linuxdo-two-column-layout {
             --ld-list-bg: #0b1220;
             --ld-list-fg: #e2e8f0;
             --ld-list-muted: #94a3b8;
@@ -791,7 +794,8 @@
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08), 0 0 0 3px var(--ld-list-ring);
         }
 
-        html[style*="color-scheme: dark"].linuxdo-two-column-layout tbody.topic-list-body > tr.topic-list-item.selected:hover {
+        html[style*="color-scheme: dark"].linuxdo-two-column-layout tbody.topic-list-body > tr.topic-list-item.selected:hover,
+        html.dark.linuxdo-two-column-layout tbody.topic-list-body > tr.topic-list-item.selected:hover {
             box-shadow: 0 18px 44px rgba(0, 0, 0, 0.35), 0 0 0 3px var(--ld-list-ring);
         }
 
@@ -799,7 +803,8 @@
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08), 0 0 0 3px var(--ld-list-ring);
         }
 
-        html[style*="color-scheme: dark"].linuxdo-two-column-layout tbody.topic-list-body > tr.topic-list-item:hover {
+        html[style*="color-scheme: dark"].linuxdo-two-column-layout tbody.topic-list-body > tr.topic-list-item:hover,
+        html.dark.linuxdo-two-column-layout tbody.topic-list-body > tr.topic-list-item:hover {
             box-shadow: 0 18px 44px rgba(0, 0, 0, 0.35), 0 0 0 3px var(--ld-list-ring);
         }
 
@@ -920,7 +925,8 @@
             transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
         }
 
-        html[style*="color-scheme: dark"] .linuxdo-copy-history-trigger {
+        html[style*="color-scheme: dark"] .linuxdo-copy-history-trigger,
+        html.dark .linuxdo-copy-history-trigger {
             --ld-h-bg: #0b1220;
             --ld-h-fg: #e2e8f0;
             --ld-h-muted: rgba(148, 163, 184, 0.12);
@@ -967,7 +973,8 @@
             display: none;
         }
 
-        html[style*="color-scheme: dark"] .linuxdo-copy-history-popover {
+        html[style*="color-scheme: dark"] .linuxdo-copy-history-popover,
+        html.dark .linuxdo-copy-history-popover {
             --ld-h-bg: #0b1220;
             --ld-h-fg: #e2e8f0;
             --ld-h-muted: rgba(148, 163, 184, 0.12);
@@ -1166,7 +1173,8 @@
             transition: transform 0.05s ease, box-shadow 0.15s ease, background 0.15s ease;
         }
 
-        html[style*="color-scheme: dark"] .linuxdo-back-to-top {
+        html[style*="color-scheme: dark"] .linuxdo-back-to-top,
+        html.dark .linuxdo-back-to-top {
             --ld-btt-bg: #0b1220;
             --ld-btt-fg: #e2e8f0;
             --ld-btt-muted: rgba(148, 163, 184, 0.12);
@@ -1251,6 +1259,10 @@
     return (summary || '').replace(/^\[AI\s*总结\]\s*:?\s*/i, '');
   }
 
+  function isAiSummaryText(summary) {
+    return /^\[AI\s*总结\]\s*:?\s*/i.test(summary || '');
+  }
+
   /**
    * @description 根据配置格式化复制内容。
    * @param {object} articleData - 文章数据。
@@ -1258,10 +1270,20 @@
    */
   function formatCopiedText(articleData) {
     if (CONFIG.COMPACT_MODE) {
+      const rawSummary = articleData && articleData.summary;
       const title = normalizeToSingleLine(articleData && articleData.title);
-      const summary = normalizeToSingleLine(stripAiSummaryPrefix(articleData && articleData.summary));
-      const combined = title && summary ? `${title}：${summary}` : (title || summary);
-      return [combined, articleData && articleData.link].filter(Boolean).join('\n').trim();
+      const summary = normalizeToSingleLine(stripAiSummaryPrefix(rawSummary));
+
+      const aiConfigured = !!(CONFIG.USE_AI_FOR_SUMMARY && CONFIG.API_KEY);
+      const aiSucceeded = isAiSummaryText(rawSummary);
+
+      // 简洁模式：默认不保留标题；但若 AI 总结失败（配置了 AI 且未生成 AI 总结），则回退为旧版简洁输出（标题：摘要）
+      if (aiConfigured && !aiSucceeded) {
+        const combined = title && summary ? `${title}：${summary}` : (title || summary);
+        return [combined, articleData && articleData.link].filter(Boolean).join('\n').trim();
+      }
+
+      return [summary, articleData && articleData.link].filter(Boolean).join('\n').trim();
     }
 
     const template = CONFIG.ARTICLE_COPY_TEMPLATE || DEFAULT_CONFIG.ARTICLE_COPY_TEMPLATE;
@@ -2134,7 +2156,15 @@
 
       if (CONFIG.USE_AI_FOR_SUMMARY && CONFIG.API_KEY) {
         console.debug('尝试使用 AI 总结内容...');
-        const contentToSummarize = fullTextContent.substring(0, SCRIPT_CONSTANTS.AI_CONTENT_MAX_LENGTH);
+        const titleForAi = normalizeToSingleLine(articleData.title);
+        let contentToSummarize = '';
+        if (titleForAi) {
+          const header = `标题：${titleForAi}\n\n`;
+          const remaining = Math.max(0, SCRIPT_CONSTANTS.AI_CONTENT_MAX_LENGTH - header.length);
+          contentToSummarize = header + fullTextContent.substring(0, remaining);
+        } else {
+          contentToSummarize = fullTextContent.substring(0, SCRIPT_CONSTANTS.AI_CONTENT_MAX_LENGTH);
+        }
         const customPrompt = CONFIG.CUSTOM_SUMMARY_PROMPT || DEFAULT_CONFIG.CUSTOM_SUMMARY_PROMPT;
         const prompt = customPrompt
           .replace('{maxChars}', CONFIG.LOCAL_SUMMARY_MAX_CHARS)
