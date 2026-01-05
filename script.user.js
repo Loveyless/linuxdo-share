@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name          从linux do获取论坛文章数据与复制
 // @namespace     http://tampermonkey.net/
-// @version       0.15.18
+// @version       0.15.19
 // @description   从linux do论坛页面获取文章的板块、标题、链接、标签和内容总结，并在标题旁添加复制按钮。支持设置界面配置。
 // @author        @Loveyless https://github.com/Loveyless/linuxdo-share
 // @match         *://*.linux.do/*
@@ -1618,17 +1618,66 @@
     }
   }
 
-  function tryScrollToTopByTimeline() {
-    const t = document.getElementsByClassName('timeline-padding');
-    if (t && t[0]) {
+  function toRelativeUrl(urlLike) {
+    if (!urlLike) return '';
+    try {
+      const url = new URL(urlLike, window.location.origin);
+      return `${url.pathname}${url.search}${url.hash}`;
+    } catch (_) {
+      return String(urlLike || '');
+    }
+  }
+
+  function getTopicIdFromPathForBackToTop() {
+    const path = window.location.pathname || '';
+    const match = path.match(/^\/t\/topic\/(\d+)/);
+    return match ? match[1] : '';
+  }
+
+  function getFirstPostUrlForBackToTop() {
+    const startLink = document.querySelector('.timeline-date-wrapper a.start-date[href]');
+    if (startLink) {
+      const href = startLink.getAttribute('href') || startLink.href || '';
+      if (href) return href;
+    }
+
+    const topicId = getTopicIdFromPathForBackToTop();
+    if (topicId) return `/t/topic/${topicId}/1`;
+    return '';
+  }
+
+  function tryJumpToFirstPostByTimelineStartDate() {
+    const startLink = document.querySelector('.timeline-date-wrapper a.start-date[href]');
+    if (!startLink) return false;
+    try {
+      startLink.click();
+      return true;
+    } catch (error) {
+      console.warn('start-date 回到顶部执行失败:', error);
+      return false;
+    }
+  }
+
+  function tryJumpToFirstPostByDiscourseURL() {
+    const href = getFirstPostUrlForBackToTop();
+    if (!href) return false;
+
+    const discourseURL = window.DiscourseURL;
+    if (discourseURL && typeof discourseURL.routeTo === 'function') {
       try {
-        t[0].style.height = 0;
-        t[0].click();
+        discourseURL.routeTo(toRelativeUrl(href));
         return true;
       } catch (error) {
-        console.warn('timeline-padding 回到顶部执行失败:', error);
+        console.warn('DiscourseURL.routeTo 回到顶部执行失败:', error);
       }
     }
+    return false;
+  }
+
+  function tryJumpToFirstPost() {
+    // 优先使用 Discourse 的路由（无整页刷新），其次点击官方“跳到顶部”入口
+    if (tryJumpToFirstPostByDiscourseURL()) return true;
+    if (tryJumpToFirstPostByTimelineStartDate()) return true;
     return false;
   }
 
@@ -1649,9 +1698,16 @@
     return Number.isFinite(current) ? current : null;
   }
 
+  function isAtFirstPost() {
+    const currentIndex = getTimelineRepliesCurrentIndex();
+    if (currentIndex === 1) return true;
+    const path = window.location.pathname || '';
+    return /^\/t\/topic\/\d+\/1(?:$|\/)/.test(path);
+  }
+
   function performBackToTop() {
     window.scrollTo(0, 0);
-    tryScrollToTopByTimeline();
+    tryJumpToFirstPost();
   }
 
   function startBackToTopRetryUntilFirstPage() {
@@ -1665,9 +1721,10 @@
         return;
       }
 
-      const currentIndex = getTimelineRepliesCurrentIndex();
-      if (currentIndex === 1) {
+      if (isAtFirstPost()) {
         clearBackToTopRetryTimer();
+        window.scrollTo(0, 0);
+        requestAnimationFrame(() => window.scrollTo(0, 0));
         return;
       }
 
