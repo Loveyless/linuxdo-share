@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name          Linuxdo-share
 // @namespace     http://tampermonkey.net/
-// @version       0.15.33
+// @version       0.15.34
 // @description   从linux do论坛页面获取文章的板块、标题、链接、标签和内容总结，并在标题旁添加复制按钮。支持设置界面配置。
 // @author        @Loveyless https://github.com/Loveyless/linuxdo-share
 // @match         *://*.linux.do/*
@@ -773,7 +773,27 @@
             color: var(--ld-h-muted-fg);
         }
 
-        .linuxdo-copy-history-settings-btn {
+        .linuxdo-copy-history-select-all {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            color: var(--ld-h-muted-fg);
+            user-select: none;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .linuxdo-copy-history-select-all input[type="checkbox"] {
+            width: 14px;
+            height: 14px;
+            margin: 0;
+            cursor: pointer;
+            accent-color: #3b82f6;
+        }
+
+        .linuxdo-copy-history-settings-btn,
+        .linuxdo-copy-history-delete-btn {
             appearance: none;
             border: 1px solid var(--ld-h-border);
             background: transparent;
@@ -791,19 +811,43 @@
             transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease, transform 0.05s ease;
         }
 
-        .linuxdo-copy-history-settings-btn:hover {
+        .linuxdo-copy-history-settings-btn:hover,
+        .linuxdo-copy-history-delete-btn:hover {
             background: var(--ld-h-muted);
             color: var(--ld-h-fg);
             box-shadow: 0 0 0 3px var(--ld-h-ring);
         }
 
-        .linuxdo-copy-history-settings-btn:active {
+        .linuxdo-copy-history-settings-btn:active,
+        .linuxdo-copy-history-delete-btn:active {
             transform: translateY(1px);
         }
 
-        .linuxdo-copy-history-settings-btn:focus-visible {
+        .linuxdo-copy-history-settings-btn:focus-visible,
+        .linuxdo-copy-history-delete-btn:focus-visible {
             outline: none;
             box-shadow: 0 0 0 3px var(--ld-h-ring);
+        }
+
+        .linuxdo-copy-history-delete-btn {
+            color: #b91c1c;
+        }
+
+        .linuxdo-copy-history-delete-btn:hover {
+            background: rgba(239, 68, 68, 0.12);
+            color: #991b1b;
+            box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.22);
+        }
+
+        .linuxdo-copy-history-delete-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .linuxdo-copy-history-delete-btn:disabled:hover {
+            background: transparent;
+            color: var(--ld-h-muted-fg);
+            box-shadow: none;
         }
 
         .linuxdo-copy-history-hint {
@@ -826,6 +870,11 @@
             transition: background 0.15s ease, box-shadow 0.15s ease;
         }
 
+        .linuxdo-copy-history-item.is-selected {
+            background: var(--ld-h-muted);
+            box-shadow: 0 0 0 3px var(--ld-h-ring);
+        }
+
         .linuxdo-copy-history-item:hover {
             background: var(--ld-h-muted);
             box-shadow: 0 0 0 3px var(--ld-h-ring);
@@ -836,6 +885,21 @@
             align-items: flex-start;
             justify-content: space-between;
             gap: 10px;
+        }
+
+        .linuxdo-copy-history-item-checkbox-wrap {
+            display: inline-flex;
+            align-items: flex-start;
+            padding-top: 2px;
+            flex-shrink: 0;
+        }
+
+        .linuxdo-copy-history-item-checkbox {
+            width: 14px;
+            height: 14px;
+            margin: 0;
+            cursor: pointer;
+            accent-color: #3b82f6;
         }
 
         .linuxdo-copy-history-item-text {
@@ -1004,6 +1068,7 @@
   let copyHistoryPopoverEl = null;
   let copyHistoryHideTimer = null;
   let copyHistoryGlobalListenersBound = false;
+  let copyHistorySelectedIds = new Set();
 
   /**
    * @description 读取历史复制内容列表。
@@ -1102,6 +1167,32 @@
       scheduleHideCopyHistoryPopover();
     });
 
+    popover.addEventListener('change', (e) => {
+      const selectAll = e.target && e.target.closest && e.target.closest('input[type="checkbox"][data-action="select-all"]');
+      if (selectAll) {
+        const list = getCopyHistoryItems();
+        if (selectAll.checked) {
+          copyHistorySelectedIds = new Set(list.map((x) => x.id));
+        } else {
+          copyHistorySelectedIds.clear();
+        }
+        updateCopyHistorySelectionUI(list);
+        return;
+      }
+
+      const itemCheckbox = e.target && e.target.closest && e.target.closest('input[type="checkbox"][data-action="select-item"][data-id]');
+      if (itemCheckbox) {
+        const id = String(itemCheckbox.getAttribute('data-id') || '').trim();
+        if (!id) return;
+        if (itemCheckbox.checked) {
+          copyHistorySelectedIds.add(id);
+        } else {
+          copyHistorySelectedIds.delete(id);
+        }
+        updateCopyHistorySelectionUI();
+      }
+    });
+
     popover.addEventListener('click', (e) => {
       const settingsBtn = e.target.closest('button[data-action="settings"]');
       if (settingsBtn) {
@@ -1109,6 +1200,25 @@
         e.stopPropagation();
         hideCopyHistoryPopover();
         if (typeof showSettingsModal === 'function') showSettingsModal();
+        return;
+      }
+
+      const deleteBtn = e.target.closest('button[data-action="delete-selected"]');
+      if (deleteBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const count = copyHistorySelectedIds.size;
+        if (count <= 0) return;
+
+        const confirmed = window.confirm(`确定删除已选择的 ${count} 条记录吗？`);
+        if (!confirmed) return;
+
+        const items = getCopyHistoryItems();
+        const next = items.filter((x) => !copyHistorySelectedIds.has(x.id));
+        const saved = persistCopyHistoryItems(next);
+        copyHistorySelectedIds.clear();
+        renderCopyHistoryPopover(saved);
         return;
       }
 
@@ -1151,6 +1261,50 @@
   function hideCopyHistoryPopover() {
     if (!copyHistoryPopoverEl) return;
     copyHistoryPopoverEl.style.display = 'none';
+    copyHistorySelectedIds.clear();
+  }
+
+  function updateCopyHistorySelectionUI(items) {
+    const popover = copyHistoryPopoverEl;
+    if (!popover) return;
+
+    const list = Array.isArray(items) ? items : getCopyHistoryItems();
+    const validIds = new Set(list.map((x) => x.id));
+    for (const id of copyHistorySelectedIds) {
+      if (!validIds.has(id)) copyHistorySelectedIds.delete(id);
+    }
+
+    const selectedCount = copyHistorySelectedIds.size;
+    const totalCount = list.length;
+
+    const hintEl = popover.querySelector('.linuxdo-copy-history-hint');
+    if (hintEl) {
+      hintEl.textContent = selectedCount > 0
+        ? `已选 ${selectedCount} / 共 ${totalCount}`
+        : '勾选后可批量删除';
+    }
+
+    const deleteBtn = popover.querySelector('button[data-action="delete-selected"]');
+    if (deleteBtn) {
+      deleteBtn.disabled = selectedCount === 0;
+      deleteBtn.textContent = selectedCount > 0 ? `删除(${selectedCount})` : '删除';
+    }
+
+    const selectAllEl = popover.querySelector('input[type="checkbox"][data-action="select-all"]');
+    if (selectAllEl) {
+      selectAllEl.disabled = totalCount === 0;
+      selectAllEl.checked = totalCount > 0 && selectedCount === totalCount;
+      selectAllEl.indeterminate = selectedCount > 0 && selectedCount < totalCount;
+    }
+
+    const itemEls = popover.querySelectorAll('.linuxdo-copy-history-item[data-item-id]');
+    itemEls.forEach((itemEl) => {
+      const id = itemEl.getAttribute('data-item-id');
+      const checked = !!(id && copyHistorySelectedIds.has(id));
+      itemEl.classList.toggle('is-selected', checked);
+      const checkbox = itemEl.querySelector('input[type="checkbox"][data-action="select-item"][data-id]');
+      if (checkbox) checkbox.checked = checked;
+    });
   }
 
   function positionCopyHistoryPopover(triggerEl) {
@@ -1183,14 +1337,20 @@
         <div class="linuxdo-copy-history-header">
           <div class="linuxdo-copy-history-header-left">
             <div class="linuxdo-copy-history-title">历史复制</div>
+            <label class="linuxdo-copy-history-select-all" title="全选/取消全选">
+              <input type="checkbox" data-action="select-all" />
+              全选
+            </label>
             <button type="button" class="linuxdo-copy-history-settings-btn" data-action="settings" aria-label="打开设置" title="打开设置">设置</button>
+            <button type="button" class="linuxdo-copy-history-delete-btn" data-action="delete-selected" aria-label="删除已选择" title="删除已选择" disabled>删除</button>
           </div>
-          <div class="linuxdo-copy-history-hint">点击复制 / 打开链接</div>
+          <div class="linuxdo-copy-history-hint">勾选后可批量删除</div>
         </div>
       `;
 
     if (!list || list.length === 0) {
       popover.innerHTML = header + `<div class="linuxdo-copy-history-empty">暂无历史记录</div>`;
+      updateCopyHistorySelectionUI(list);
       return;
     }
 
@@ -1200,8 +1360,11 @@
         const safeTitle = escapeHtml(item.title || '（无标题）');
         const snippet = escapeHtml((item.summary || item.text || '').trim());
         return `
-          <div class="linuxdo-copy-history-item" role="menuitem">
+          <div class="linuxdo-copy-history-item" role="menuitem" data-item-id="${escapeHtml(item.id)}">
             <div class="linuxdo-copy-history-item-top">
+              <label class="linuxdo-copy-history-item-checkbox-wrap" title="选择">
+                <input type="checkbox" class="linuxdo-copy-history-item-checkbox" data-action="select-item" data-id="${escapeHtml(item.id)}" aria-label="选择此条历史记录" />
+              </label>
               <div class="linuxdo-copy-history-item-text">
                 <div class="linuxdo-copy-history-item-title">${safeTitle}</div>
                 <div class="linuxdo-copy-history-item-snippet">${snippet}</div>
@@ -1217,6 +1380,7 @@
       .join('');
 
     popover.innerHTML = header + `<div class="linuxdo-copy-history-list">${html}</div>`;
+    updateCopyHistorySelectionUI(list);
   }
 
   function findHeaderSearchActionsContainer() {
