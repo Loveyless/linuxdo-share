@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name          从linux do获取论坛文章数据与复制
 // @namespace     http://tampermonkey.net/
-// @version       0.15.25
+// @version       0.15.26
 // @description   从linux do论坛页面获取文章的板块、标题、链接、标签和内容总结，并在标题旁添加复制按钮。支持设置界面配置。
 // @author        @Loveyless https://github.com/Loveyless/linuxdo-share
 // @match         *://*.linux.do/*
@@ -1450,7 +1450,13 @@
       }
     });
 
-    window.addEventListener('scroll', () => hideCopyHistoryPopover(), true);
+    window.addEventListener('scroll', (e) => {
+      // 不要在滚动弹窗自身时关闭（鼠标滚轮/拖动滚动条）
+      if (!copyHistoryPopoverEl || copyHistoryPopoverEl.style.display === 'none') return;
+      const target = e && e.target;
+      if (target && copyHistoryPopoverEl.contains(target)) return;
+      hideCopyHistoryPopover();
+    }, true);
     window.addEventListener('resize', () => hideCopyHistoryPopover(), true);
 
     copyHistoryPopoverEl = popover;
