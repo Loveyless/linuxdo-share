@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name          从linux do获取论坛文章数据与复制
 // @namespace     http://tampermonkey.net/
-// @version       0.15.28
+// @version       0.15.29
 // @description   从linux do论坛页面获取文章的板块、标题、链接、标签和内容总结，并在标题旁添加复制按钮。支持设置界面配置。
 // @author        @Loveyless https://github.com/Loveyless/linuxdo-share
 // @match         *://*.linux.do/*
@@ -296,15 +296,16 @@
 
         /* 设置界面样式 - shadcn 风格（简约） */
         .linuxdo-settings-dialog {
-            --ld-bg: #ffffff;
-            --ld-fg: #0f172a;
-            --ld-muted: #f1f5f9;
-            --ld-muted-fg: #64748b;
-            --ld-card: #ffffff;
-            --ld-border: rgba(15, 23, 42, 0.12);
-            --ld-ring: rgba(59, 130, 246, 0.45);
-            --ld-primary: #0f172a;
-            --ld-primary-fg: #ffffff;
+            /* 优先使用 Discourse 主题变量，自动适配深浅色；无变量时回退到浅色 */
+            --ld-bg: var(--secondary, #ffffff);
+            --ld-fg: var(--primary, #0f172a);
+            --ld-muted: var(--primary-very-low, #f1f5f9);
+            --ld-muted-fg: var(--primary-medium, #64748b);
+            --ld-card: var(--secondary, #ffffff);
+            --ld-border: var(--content-border-color, rgba(15, 23, 42, 0.12));
+            --ld-ring: var(--tertiary-low, rgba(59, 130, 246, 0.45));
+            --ld-primary: var(--primary, #0f172a);
+            --ld-primary-fg: var(--secondary, #ffffff);
 
             border: none;
             padding: 0;
@@ -322,15 +323,16 @@
 
         html[style*="color-scheme: dark"] .linuxdo-settings-dialog,
         html.dark .linuxdo-settings-dialog {
-            --ld-bg: #0b1220;
-            --ld-fg: #e2e8f0;
-            --ld-muted: rgba(148, 163, 184, 0.12);
-            --ld-muted-fg: #94a3b8;
-            --ld-card: #0f172a;
-            --ld-border: rgba(148, 163, 184, 0.18);
-            --ld-ring: rgba(59, 130, 246, 0.55);
-            --ld-primary: #e2e8f0;
-            --ld-primary-fg: #0b1220;
+            /* 深色模式兜底：仅当站点未提供主题变量时生效 */
+            --ld-bg: var(--secondary, #0b1220);
+            --ld-fg: var(--primary, #e2e8f0);
+            --ld-muted: var(--primary-very-low, rgba(148, 163, 184, 0.12));
+            --ld-muted-fg: var(--primary-medium, #94a3b8);
+            --ld-card: var(--secondary, #0f172a);
+            --ld-border: var(--content-border-color, rgba(148, 163, 184, 0.18));
+            --ld-ring: var(--tertiary-low, rgba(59, 130, 246, 0.55));
+            --ld-primary: var(--primary, #e2e8f0);
+            --ld-primary-fg: var(--secondary, #0b1220);
         }
 
         .linuxdo-settings-dialog::backdrop {
