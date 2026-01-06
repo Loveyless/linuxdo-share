@@ -1,8 +1,10 @@
 // ==UserScript==
 // @name          Linuxdo-share
 // @namespace     http://tampermonkey.net/
-// @version       0.15.35
+// @version       0.15.36
 // @description   从linux do论坛页面获取文章的板块、标题、链接、标签和内容总结，并在标题旁添加复制按钮。支持设置界面配置。
+// @icon          data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2NCIgaGVpZ2h0PSI2NCIgdmlld0JveD0iMCAwIDY0IDY0Ij48cmVjdCB4PSIxOCIgeT0iMTQiIHdpZHRoPSIzMCIgaGVpZ2h0PSIzOCIgcng9IjYiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzRlNTk2OSIgc3Ryb2tlLXdpZHRoPSI0Ii8+PHJlY3QgeD0iMTIiIHk9IjIwIiB3aWR0aD0iMzAiIGhlaWdodD0iMzgiIHJ4PSI2IiBmaWxsPSJub25lIiBzdHJva2U9IiMxNjRkZTUiIHN0cm9rZS13aWR0aD0iNCIvPjwvc3ZnPg==
+// @icon64        data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2NCIgaGVpZ2h0PSI2NCIgdmlld0JveD0iMCAwIDY0IDY0Ij48cmVjdCB4PSIxOCIgeT0iMTQiIHdpZHRoPSIzMCIgaGVpZ2h0PSIzOCIgcng9IjYiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzRlNTk2OSIgc3Ryb2tlLXdpZHRoPSI0Ii8+PHJlY3QgeD0iMTIiIHk9IjIwIiB3aWR0aD0iMzAiIGhlaWdodD0iMzgiIHJ4PSI2IiBmaWxsPSJub25lIiBzdHJva2U9IiMxNjRkZTUiIHN0cm9rZS13aWR0aD0iNCIvPjwvc3ZnPg==
 // @author        @Loveyless https://github.com/Loveyless/linuxdo-share
 // @match         *://*.linux.do/*
 // @match         *://*.idcflare.com/*
@@ -666,12 +668,12 @@
 
         /* 历史复制内容（搜索框右侧） */
         .linuxdo-copy-history-trigger {
-            --ld-h-bg: #ffffff;
-            --ld-h-fg: #0f172a;
-            --ld-h-muted: #f1f5f9;
-            --ld-h-muted-fg: #64748b;
-            --ld-h-border: rgba(15, 23, 42, 0.12);
-            --ld-h-ring: rgba(59, 130, 246, 0.45);
+            --ld-h-bg: var(--secondary, #ffffff);
+            --ld-h-fg: var(--primary, #0f172a);
+            --ld-h-muted: var(--primary-very-low, #f1f5f9);
+            --ld-h-muted-fg: var(--primary-medium, #64748b);
+            --ld-h-border: var(--primary-low, rgba(15, 23, 42, 0.12));
+            --ld-h-ring: var(--tertiary-low, rgba(59, 130, 246, 0.45));
 
             appearance: none;
             border: 1px solid var(--ld-h-border);
@@ -691,12 +693,12 @@
 
         html[style*="color-scheme: dark"] .linuxdo-copy-history-trigger,
         html.dark .linuxdo-copy-history-trigger {
-            --ld-h-bg: #0b1220;
-            --ld-h-fg: #e2e8f0;
-            --ld-h-muted: rgba(148, 163, 184, 0.12);
-            --ld-h-muted-fg: #94a3b8;
-            --ld-h-border: rgba(148, 163, 184, 0.18);
-            --ld-h-ring: rgba(59, 130, 246, 0.55);
+            --ld-h-bg: var(--secondary, #111827);
+            --ld-h-fg: var(--primary, #e5e7eb);
+            --ld-h-muted: var(--primary-very-low, rgba(148, 163, 184, 0.12));
+            --ld-h-muted-fg: var(--primary-medium, #9ca3af);
+            --ld-h-border: var(--primary-low, rgba(148, 163, 184, 0.18));
+            --ld-h-ring: var(--tertiary-low, rgba(59, 130, 246, 0.55));
         }
 
         .linuxdo-copy-history-trigger:hover {
@@ -716,12 +718,12 @@
         }
 
         .linuxdo-copy-history-popover {
-            --ld-h-bg: #ffffff;
-            --ld-h-fg: #0f172a;
-            --ld-h-muted: #f1f5f9;
-            --ld-h-muted-fg: #64748b;
-            --ld-h-border: rgba(15, 23, 42, 0.12);
-            --ld-h-ring: rgba(59, 130, 246, 0.18);
+            --ld-h-bg: var(--secondary, #ffffff);
+            --ld-h-fg: var(--primary, #0f172a);
+            --ld-h-muted: var(--primary-very-low, #f1f5f9);
+            --ld-h-muted-fg: var(--primary-medium, #64748b);
+            --ld-h-border: var(--primary-low, rgba(15, 23, 42, 0.12));
+            --ld-h-ring: var(--tertiary-low, rgba(59, 130, 246, 0.18));
 
             position: fixed;
             z-index: 100000;
@@ -739,12 +741,12 @@
 
         html[style*="color-scheme: dark"] .linuxdo-copy-history-popover,
         html.dark .linuxdo-copy-history-popover {
-            --ld-h-bg: #0b1220;
-            --ld-h-fg: #e2e8f0;
-            --ld-h-muted: rgba(148, 163, 184, 0.12);
-            --ld-h-muted-fg: #94a3b8;
-            --ld-h-border: rgba(148, 163, 184, 0.18);
-            --ld-h-ring: rgba(59, 130, 246, 0.24);
+            --ld-h-bg: var(--secondary, #111827);
+            --ld-h-fg: var(--primary, #e5e7eb);
+            --ld-h-muted: var(--primary-very-low, rgba(148, 163, 184, 0.12));
+            --ld-h-muted-fg: var(--primary-medium, #9ca3af);
+            --ld-h-border: var(--primary-low, rgba(148, 163, 184, 0.18));
+            --ld-h-ring: var(--tertiary-low, rgba(59, 130, 246, 0.24));
             box-shadow: 0 24px 90px rgba(0, 0, 0, 0.52);
         }
 
@@ -808,7 +810,7 @@
             margin: 0;
             display: block;
             cursor: pointer;
-            accent-color: #3b82f6;
+            accent-color: var(--tertiary, #3b82f6);
         }
 
         .linuxdo-copy-history-settings-btn,
@@ -849,13 +851,13 @@
         }
 
         .linuxdo-copy-history-delete-btn {
-            color: #b91c1c;
+            color: var(--danger, #b91c1c);
         }
 
         .linuxdo-copy-history-delete-btn:hover {
-            background: rgba(239, 68, 68, 0.12);
-            color: #991b1b;
-            box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.22);
+            background: var(--danger-low, rgba(239, 68, 68, 0.12));
+            color: var(--danger, #991b1b);
+            box-shadow: 0 0 0 3px var(--danger-low, rgba(239, 68, 68, 0.22));
         }
 
         .linuxdo-copy-history-delete-btn:disabled {
@@ -919,7 +921,7 @@
             margin: 0;
             display: block;
             cursor: pointer;
-            accent-color: #3b82f6;
+            accent-color: var(--tertiary, #3b82f6);
         }
 
         .linuxdo-copy-history-item-text {
@@ -970,7 +972,7 @@
         }
 
         .linuxdo-copy-history-btn:hover {
-            background: var(--ld-h-bg);
+            background: var(--ld-h-muted);
             box-shadow: 0 0 0 3px var(--ld-h-ring);
         }
 
@@ -1058,17 +1060,22 @@
       const rawSummary = articleData && articleData.summary;
       const title = normalizeToSingleLine(articleData && articleData.title);
       const summary = normalizeToSingleLine(stripAiSummaryPrefix(rawSummary));
+      const author = String((articleData && articleData.username) || '').replace(/^@/, '').trim();
+      const authorMention = author ? author.split(/\s+/)[0] : '';
+      const authorSuffix = authorMention ? ` @${authorMention}` : '';
 
       const aiConfigured = !!(CONFIG.USE_AI_FOR_SUMMARY && CONFIG.API_KEY);
       const aiSucceeded = isAiSummaryText(rawSummary);
 
       // 简洁模式：默认不保留标题；但若 AI 总结失败（配置了 AI 且未生成 AI 总结），则回退为旧版简洁输出（标题：摘要）
       if (aiConfigured && !aiSucceeded) {
-        const combined = title && summary ? `${title}：${summary}` : (title || summary);
+        let combined = title && summary ? `${title}：${summary}` : (title || summary);
+        if (combined && authorSuffix) combined = `${combined}${authorSuffix}`;
         return [combined, articleData && articleData.link].filter(Boolean).join('\n').trim();
       }
 
-      return [summary, articleData && articleData.link].filter(Boolean).join('\n').trim();
+      const summaryLine = summary && authorSuffix ? `${summary}${authorSuffix}` : summary;
+      return [summaryLine, articleData && articleData.link].filter(Boolean).join('\n').trim();
     }
 
     const template = CONFIG.ARTICLE_COPY_TEMPLATE || DEFAULT_CONFIG.ARTICLE_COPY_TEMPLATE;
@@ -1693,7 +1700,7 @@
     // 获取用户名
     const postAuthorContainer = document.querySelector('.topic-meta-data, .post-stream .post:first-of-type');
     if (postAuthorContainer) {
-      const usernameElement = postAuthorContainer.querySelector('.names .first.full-name a, .username a');
+      const usernameElement = postAuthorContainer.querySelector('.username a, .names .first.full-name a');
       if (usernameElement) {
         userData.username = usernameElement.textContent.trim();
       }
